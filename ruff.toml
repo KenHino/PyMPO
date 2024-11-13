@@ -1,0 +1,20 @@
+line-length = 80
+target-version = "py312"
+extend-exclude = ["*.ipynb"]
+#extend-include = ["*.ipynb"]
+
+[lint]
+select = [
+  # list of rules are available at https://beta.ruff.rs/docs/rules/
+  "E",  # pycodestyle (error)
+  "W",  # pycodestyle (warning)
+  "F",  # Pyflakes
+  "B",  # flake8-bugbear
+  "I",  # isort
+]
+ignore = [
+  "B018", # useless-expression
+]
+
+[lint.pydocstyle]
+convention = "google"
