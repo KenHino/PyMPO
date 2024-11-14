@@ -14,8 +14,8 @@ class OpSite:
     symbol: sympy.Basic
     isite: int
     value: np.ndarray | None
-    coef: int | float | complex | sympy.Basic = 1
-    isdiag: bool = False
+    coef: int | float | complex | sympy.Basic
+    isdiag: bool
 
     def __init__(
         self,
@@ -114,7 +114,7 @@ def get_eye_site(i: int, n_basis: int | None = None):
     if isinstance(n_basis, int):
         value = np.ones(n_basis)
     return OpSite(
-        sympy.Basic(r"\hat{1}_" + f"{i}"), i, value=value, coef=1, isdiag=True
+        sympy.Symbol(r"\hat{1}_" + f"{i}"), i, value=value, coef=1, isdiag=True
     )
 
 
@@ -125,8 +125,8 @@ class OpProductSite:
 
     """
 
-    coef: int | float | complex | sympy.Basic = 1
-    symbol: sympy.Basic = 1
+    coef: int | float | complex | sympy.Basic
+    symbol: sympy.Basic
     ops: list[OpSite]
     sites: list[int]
 
@@ -134,9 +134,11 @@ class OpProductSite:
         argsrt = np.argsort([op.isite for op in ops])
         self.ops = [ops[i] for i in argsrt]
         self.sites = []
+        self.symbol = 1
+        self.coef = 1
         for op in self.ops:
             self.coef *= op.coef
-            op.coef = 1
+            op.coef = 1  # CAUTION original coef is set to 1
             self.symbol *= op.symbol
             self.sites.append(op.isite)
         if self._is_duplicated():
@@ -163,7 +165,7 @@ class OpProductSite:
                 idx = bisect_left(self.sites, other.isite)
                 self.coef *= other.coef
                 self.symbol *= other.symbol
-                other.coef = 1
+                other.coef = 1  # CAUTION original coef is set to 1
                 self.ops.insert(idx, other)
                 self.sites.insert(idx, other.isite)
                 return self
@@ -209,6 +211,47 @@ class OpProductSite:
             op.isite for op in self.ops
         ]
 
+    def get_symbol_interval(
+        self, start_site: int, end_site: int
+    ) -> sympy.Basic:
+        """
+        Get the symbol of the operator acting on the sites between start_site and end_site.
+
+        When the operator is symbol = z_1 * z_6,
+        - get_symbol_interval(0, 3) returns 1_0 * z_1 * 1_2,
+        - get_symbol_interval(3, 8) returns 1_3 * 1_4 * 1_5 * z_6 * 1_7.
+
+        Args:
+            start_site (int): The start site.
+            end_site (int): The end site.
+
+        Returns:
+            sympy.Basic: The symbol of the operator acting on the sites between start_site and end_site.
+        """
+        symbol = 1
+        for i in range(start_site, end_site):
+            if i in self.sites:
+                idx = self.sites.index(i)
+                symbol *= self.ops[idx].symbol
+            else:
+                symbol *= get_eye_site(i).symbol
+        assert isinstance(symbol, sympy.Basic)
+        return symbol
+
+    def __getitem__(self, key: int | slice) -> sympy.Basic:
+        if isinstance(key, slice):
+            start = key.start
+            stop = key.stop
+            if start is None:
+                start = 0
+            if stop is None:
+                raise ValueError("Invalid slice. End index is not trivial.")
+            return self.get_symbol_interval(start, stop)
+        elif isinstance(key, int):
+            return self.get_symbol_interval(key, key + 1)
+        else:
+            raise ValueError("Invalid type")
+
 
 class SumOfProducts:
     """
@@ -239,6 +282,13 @@ class SumOfProducts:
         for i in range(len(self.ops)):
             symbol += self.ops[i].symbol * self.coefs[i]
         return symbol
+
+    @property
+    def ndim(self):
+        max_ndim = 0
+        for op in self.ops:
+            max_ndim = max(max_ndim, max(op.sites))
+        return max_ndim
 
     def __add__(
         self, other: OpSite | OpProductSite | SumOfProducts

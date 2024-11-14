@@ -14,6 +14,7 @@ select = [
 ]
 ignore = [
   "B018", # useless-expression
+  "E501", # line too long
 ]
 
 [lint.pydocstyle]
