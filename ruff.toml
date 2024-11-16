@@ -1,6 +1,6 @@
 line-length = 80
 target-version = "py312"
-extend-exclude = ["*.ipynb"]
+#extend-exclude = ["*.ipynb"]
 #extend-include = ["*.ipynb"]
 
 [lint]
@@ -14,6 +14,8 @@ select = [
 ]
 ignore = [
   "B018", # useless-expression
+  "E501", # line too long
+  "E731", # do not assign a lambda expression, use a def
 ]
 
 [lint.pydocstyle]
