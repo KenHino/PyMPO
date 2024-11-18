@@ -1,3 +1,12 @@
+*_relax/
+*_propagate/
+*.log
+*.out
+*.err
+*.txt
+*.dat
+*.pdf
+*.pkl
 .vscode/
 # Byte-compiled / optimized / DLL files
 __pycache__/

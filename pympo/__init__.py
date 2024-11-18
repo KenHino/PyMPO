@@ -1,4 +1,5 @@
 from .bipartite import (
+    AssignManager,
     assign_core,
     get_bipartite,
     get_maximal_matching,
@@ -19,6 +20,7 @@ __all__ = [
     "get_maximal_matching",
     "get_min_vertex_cover",
     "get_UVE",
+    "AssignManager",
     "SumOfProducts",
     "OpSite",
     "show_assigns",

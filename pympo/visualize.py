@@ -14,7 +14,7 @@ def show_assigns(
     W_assigns: list[list[int]],
     coef_site: list[int],
     scale: float = 0.8,
-):
+) -> None:
     G = nx.Graph()
     pos = {}
     ndim = operators.ndim
@@ -124,7 +124,12 @@ def show_assigns(
     plt.show()
 
 
-def show_bipartite(U, V, E, retained_E=None):
+def show_bipartite(
+    U: set[str] | list[str],
+    V: set[str] | list[str],
+    E: set[tuple[str, str]] | list[tuple[str, str]],
+    retained_E: list[tuple[str, str]] | None = None,
+) -> tuple[nx.Graph, dict[str, tuple[int, int]]]:
     G = get_bipartite(U, V, E)
     G_latex = _renameG2latex(G)
     pos = {node: (0, i) for i, node in enumerate(U)}

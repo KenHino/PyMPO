@@ -1,6 +1,6 @@
 line-length = 80
 target-version = "py312"
-#extend-exclude = ["*.ipynb"]
+extend-exclude = ["*.ipynb"]
 #extend-include = ["*.ipynb"]
 
 [lint]

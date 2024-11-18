@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import re
 from bisect import bisect_left
+from typing import Iterator
 
 import numpy as np
 import sympy
+from numpy.typing import NDArray
 
 
 class OpSite:
@@ -13,7 +16,7 @@ class OpSite:
 
     symbol: sympy.Basic
     isite: int
-    value: np.ndarray | None
+    value: NDArray | None
     coef: int | float | complex | sympy.Basic
     isdiag: bool
 
@@ -22,10 +25,10 @@ class OpSite:
         symbol: sympy.Basic | str,
         isite: int,
         *,
-        value: np.ndarray | None = None,
+        value: NDArray | None = None,
         coef: int | float | complex | sympy.Basic | str = 1,
         isdiag: bool = False,
-    ):
+    ) -> None:
         if isinstance(symbol, sympy.Basic):
             self.symbol = symbol
         elif isinstance(symbol, str):
@@ -37,13 +40,18 @@ class OpSite:
         if isinstance(coef, str):
             self.coef = sympy.Basic(coef)
         self.coef = coef
-        self.isdiag = isdiag
+        if value is not None:
+            self.isdiag = value.ndim == 1
+        else:
+            self.isdiag = isdiag
 
-    def __repr__(self):
-        return (self.symbol * self.coef).__repr__()
+    def __repr__(self) -> str:
+        retval = self.symbol * self.coef
+        assert isinstance(retval, sympy.Basic)
+        return retval.__repr__()
 
-    def __str__(self):
-        return (self.symbol * self.coef).__str__()
+    def __str__(self) -> str:
+        return self.__repr__()
 
     def __mul__(
         self,
@@ -122,8 +130,8 @@ class OpSite:
             raise ValueError("Invalid type")
 
 
-def get_eye_site(i: int, n_basis: int | None = None):
-    value: np.ndarray | None = None
+def get_eye_site(i: int, n_basis: int | None = None) -> OpSite:
+    value: NDArray | None = None
     if isinstance(n_basis, int):
         value = np.ones(n_basis)
     return OpSite(
@@ -142,8 +150,6 @@ def omit_eye_site(latex_symbol: str) -> str:
             the identity operator like $\hat{z}_1$.
 
     """
-    import re
-
     latex = re.sub(r"\\hat\{1\}_[0-9]+", "", latex_symbol)
     if re.match(r"\$[ ]*\$", latex):
         if re.search(r"\\hat\{1\}_0", latex_symbol):
@@ -165,7 +171,7 @@ class OpProductSite:
     ops: list[OpSite]
     sites: list[int]
 
-    def __init__(self, ops: list[OpSite]):
+    def __init__(self, ops: list[OpSite]) -> None:
         argsrt = np.argsort([op.isite for op in ops])
         self.ops = [ops[i] for i in argsrt]
         self.sites = []
@@ -181,10 +187,10 @@ class OpProductSite:
         if not self._is_sorted():
             raise ValueError("Site index is not sorted")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return " * ".join([op.__repr__() for op in self.ops])
 
-    def __str__(self):
+    def __str__(self) -> str:
         return " * ".join([op.__str__() for op in self.ops])
 
     def __mul__(
@@ -217,6 +223,16 @@ class OpProductSite:
     ) -> OpProductSite:
         return self.__mul__(other)
 
+    def __truediv__(
+        self, other: int | float | complex | sympy.Basic
+    ) -> OpProductSite:
+        if isinstance(other, int | float | complex | sympy.Basic):
+            retval = self.__mul__(1 / other)
+            assert isinstance(retval, OpProductSite)
+            return retval
+        else:
+            raise ValueError(f"Invalid type: {type(other)=}")
+
     def __add__(
         self, other: OpSite | OpProductSite | SumOfProducts
     ) -> SumOfProducts:
@@ -240,10 +256,10 @@ class OpProductSite:
         else:
             raise ValueError(f"Invalid type: {type(other)=}")
 
-    def _is_duplicated(self):
+    def _is_duplicated(self) -> bool:
         return len(self.sites) != len(set(self.sites))
 
-    def _is_sorted(self):
+    def _is_sorted(self) -> bool:
         return self.sites == sorted(self.sites) and self.sites == [
             op.isite for op in self.ops
         ]
@@ -264,16 +280,30 @@ class OpProductSite:
 
         Returns:
             sympy.Basic: The symbol of the operator acting on the sites between start_site and end_site.
+
+        To Do:
+            - Improve the performance of the function by memoization.
         """
         symbol = 1
         idx = bisect_left(self.sites, start_site)
+        is_eye = True
         for i in range(start_site, end_site):
             if len(self.sites) > idx and self.sites[idx] == i:
-                symbol *= self.ops[idx].symbol
+                if is_eye:
+                    symbol = self.ops[idx].symbol
+                    is_eye = False
+                else:
+                    symbol *= self.ops[idx].symbol
                 idx += 1
             else:
-                symbol *= get_eye_site(i).symbol
+                if symbol == 1:
+                    # To reduce cost for symbolic computation,
+                    # identity operator is only used when symbol == 1.
+                    symbol = get_eye_site(i).symbol
+                else:
+                    pass
         assert isinstance(symbol, sympy.Basic) or symbol == 1
+        # self.symbol_intervals[(start_site, end_site)] = symbol
         return symbol
 
     def __getitem__(self, key: int | slice) -> sympy.Basic:
@@ -290,6 +320,40 @@ class OpProductSite:
         else:
             raise ValueError("Invalid type")
 
+    def get_site_value(
+        self, isite: int, n_basis: int, is_diag: bool
+    ) -> NDArray:
+        """
+        Get the value of the operator acting on the site isite.
+
+        Args:
+            isite (int): The site index.
+            n_basis (int): The number of basis.
+
+        Returns:
+            NDArray: The value of the operator acting on the site isite.
+        """
+        idx = bisect_left(self.sites, isite)
+        if len(self.sites) > idx and self.sites[idx] == isite:
+            value = self.ops[idx].value
+            assert isinstance(value, np.ndarray)
+            if is_diag:
+                assert value.shape == (
+                    n_basis,
+                ), f"{value.shape=} while {n_basis=}"
+            elif value.ndim == 1:
+                value = np.diag(value)
+                assert value.shape == (
+                    n_basis,
+                    n_basis,
+                ), f"{value.shape=} while {n_basis=}"
+            return value
+        else:
+            if is_diag:
+                return np.ones(n_basis)
+            else:
+                return np.eye(n_basis)
+
 
 class SumOfProducts:
     """
@@ -302,7 +366,7 @@ class SumOfProducts:
     ops: list[OpProductSite]
     symbols: list[sympy.Basic]
 
-    def __init__(self, ops: list[OpProductSite | OpSite]):
+    def __init__(self, ops: list[OpProductSite | OpSite]) -> None:
         self.coefs = []
         self.ops = []
         self.symbols = []
@@ -315,20 +379,21 @@ class SumOfProducts:
             self.symbols.append(op.symbol)
 
     @property
-    def symbol(self):
+    def symbol(self) -> sympy.Basic:
         symbol = 0
         for i in range(len(self.ops)):
             symbol += self.ops[i].symbol * self.coefs[i]
+        assert isinstance(symbol, sympy.Basic)
         return symbol
 
     @property
-    def ndim(self):
+    def ndim(self) -> int:
         max_ndim = 0
         for op in self.ops:
             max_ndim = max(max_ndim, max(op.sites) + 1)
         return max_ndim
 
-    def get_unique_ops_site(self, i: int):
+    def get_unique_ops_site(self, i: int) -> set[OpSite]:
         unique_ops_set = set()
         for op in self.ops:
             op_i = op[i]
@@ -336,8 +401,39 @@ class SumOfProducts:
         return unique_ops_set
 
     @property
-    def nops(self):
+    def nops(self) -> int:
         return len(self.ops)
+
+    @property
+    def nbasis_list(self) -> list[int]:
+        nbasis_list = [0] * self.ndim
+        for opproduct in self.ops:
+            for isite, opsite in zip(
+                opproduct.sites, opproduct.ops, strict=True
+            ):
+                if opsite.value is None:
+                    raise ValueError(f"Value at {opsite=} is not defined.")
+                if nbasis_list[isite] == 0:
+                    nbasis_list[isite] = opsite.value.shape[0]
+                else:
+                    if nbasis_list[isite] != opsite.value.shape[0]:
+                        raise ValueError(
+                            f"Number of basis at {isite=} is not consistent with {opsite=} and {nbasis_list[isite]=}"
+                        )
+        for i, nbasis in enumerate(nbasis_list):
+            if nbasis == 0:
+                raise ValueError(f"Number of basis at {i=} is ambiguous.")
+        return nbasis_list
+
+    @property
+    def is_diag_list(self) -> list[bool]:
+        is_diag_list = [True] * self.ndim
+        for opproduct in self.ops:
+            for isite, opsite in zip(
+                opproduct.sites, opproduct.ops, strict=True
+            ):
+                is_diag_list[isite] &= opsite.isdiag
+        return is_diag_list
 
     def __add__(
         self, other: OpSite | OpProductSite | SumOfProducts
@@ -383,9 +479,8 @@ class SumOfProducts:
     ) -> SumOfProducts:
         return self.__mul__(other)
 
-    def to_mpo(self):
-        # まずはJupyterで実装して移植する。
+    def to_mpo(self) -> list[NDArray]:
         raise NotImplementedError()
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[OpProductSite]:
         return iter(self.ops)

@@ -20,14 +20,6 @@ pympo.operators module
    :undoc-members:
    :show-inheritance:
 
-pympo.unionfind module
-----------------------
-
-.. automodule:: pympo.unionfind
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 pympo.visualize module
 ----------------------
 

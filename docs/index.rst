@@ -15,5 +15,9 @@ documentation for details.
    :maxdepth: 2
    :caption: Contents:
 
-   example/autompo.ipynb
+   example/autompo-sym.ipynb
+   example/autompo-num.ipynb
+   example/pytdscf-henon-heiles.ipynb
+   example/pytdscf-taylor.ipynb
+
    pympo
