@@ -6,7 +6,7 @@ repos:
         args: [--branch, main]
       - id: check-added-large-files
         args: ['--maxkb=500']
-        exclude: 'docs/example/autompo.ipynb'
+        exclude: 'docs/example/autompo-sym.ipynb|docs/example/autompo-num.ipynb|docs/example/pytdscf-taylor.ipynb'
       - id: check-docstring-first
       - id: check-yaml
       - id: check-toml

@@ -18,7 +18,7 @@ def test_opsite_initialization():
     assert op.isite == isite
     assert np.array_equal(op.value, value)
     assert op.coef == coef
-    assert op.isdiag == isdiag
+    assert not op.isdiag  # because value is not diagonal
 
 
 def test_opsite_multiplication_with_scalar():
