@@ -412,6 +412,7 @@ def assign_core(
 ) -> tuple[list[str], sympy.Matrix]:
     Unew: list[str] = []  # U[1..i]
     unique_ops = []
+    update_coef_ops = []
     for j, vertex in enumerate(min_vertex_cover):
         if vertex in U:
             Unew.append(vertex)
@@ -446,21 +447,24 @@ def assign_core(
                 if E_assigns[k] in remove_E:
                     W_assigns[k][isite] = j
                     opsite = op[isite]
-                    if opsite not in represent_ops:
+                    if coef_site[k] >= isite:
+                        unique_ops.append(k)
+                    elif opsite not in represent_ops:
                         unique_ops.append(k)
                         represent_ops[opsite] = k
-                    elif coef_site[k] >= isite:
-                        unique_ops.append(k)
 
                     if coef_site[k] < isite:
                         vertex_U_concat += op[0 : isite + 1]
                     else:
-                        coef_site[k] = isite
+                        # coef_site[k] = isite
+                        update_coef_ops.append(k)
                         vertex_U_concat += op.coef * op[0 : isite + 1]
             Unew.append(sympy.srepr(vertex_U_concat))
         if visualize:
             pympo.visualize.show_bipartite(U, V, E, retained_E)
         E = retained_E
+    for k in update_coef_ops:
+        coef_site[k] = isite
     if visualize:
         pympo.visualize.show_assigns(operators, W_assigns, coef_site)
     if isite == 0:
