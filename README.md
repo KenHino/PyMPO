@@ -6,7 +6,7 @@ https://kenhino.github.io/PyMPO/example/autompo.html
 
 ## Installation
 
-Just using [`uv`]((https://docs.astral.sh/uv/)
+Just using [`uv`](https://docs.astral.sh/uv/)
 ```bash
 $ uv sync
 ```
