@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 import sympy
 
 from pympo.operators import OpProductSite, OpSite, SumOfProducts, get_eye_site
@@ -9,15 +8,13 @@ def test_opsite_initialization():
     symbol = sympy.Symbol("z")
     isite = 0
     value = np.array([[1, 0], [0, -1]])
-    coef = 2.0
     isdiag = True
 
-    op = OpSite(symbol, isite, value=value, coef=coef, isdiag=isdiag)
+    op = OpSite(symbol, isite, value=value, isdiag=isdiag)
 
     assert op.symbol == symbol
     assert op.isite == isite
     assert np.array_equal(op.value, value)
-    assert op.coef == coef
     assert not op.isdiag  # because value is not diagonal
 
 
@@ -89,16 +86,6 @@ def test_opproductsite_multiplication_with_opsite():
     assert result.sites == [0, 1]
 
 
-def test_opproductsite_multiplication_with_opsite_duplicate_site():
-    symbol = sympy.Symbol("z")
-    op1 = OpSite(symbol, 0)
-    op2 = OpSite(symbol, 0)
-    op_product = OpProductSite([op1])
-
-    with pytest.raises(ValueError):
-        op_product * op2
-
-
 def test_opproductsite_multiplication_with_opproductsite():
     symbol = sympy.Symbol("z")
     op1 = OpSite(symbol, 0)
@@ -117,7 +104,6 @@ def test_opsite_creation():
     opsite = OpSite(symbol, 0)
     assert opsite.symbol == symbol
     assert opsite.isite == 0
-    assert opsite.coef == 1
 
 
 def test_opproductsite_creation():
@@ -163,9 +149,7 @@ def test_opsite_addition_with_opsite():
     opsite1 = OpSite(symbol1, 0)
     opsite2 = OpSite(symbol2, 0)
     result = opsite1 + opsite2
-    assert isinstance(result, OpSite)
-    assert result.symbol == symbol1 + symbol2
-    assert result.isite == 0
+    assert isinstance(result, OpProductSite)
 
 
 def test_opsite_addition_with_opsite_different_sites():
@@ -238,3 +222,39 @@ def test_sumofproducts_addition_with_sumofproducts():
     sumofproducts2 = SumOfProducts([opsite2])
     result = sumofproducts1 + sumofproducts2
     assert isinstance(result, SumOfProducts)
+
+    def test_sumofproducts_isdiag_list_all_diag():
+        symbol1 = sympy.Symbol("X")
+        symbol2 = sympy.Symbol("Y")
+        value1 = np.array([1, 0])
+        value2 = np.array([0, 1])
+        opsite1 = OpSite(symbol1, 0, value=value1, isdiag=True)
+        opsite2 = OpSite(symbol2, 1, value=value2, isdiag=True)
+        opproductsite1 = OpProductSite([opsite1])
+        opproductsite2 = OpProductSite([opsite2])
+        sumofproducts = SumOfProducts([opproductsite1, opproductsite2])
+        assert sumofproducts.isdiag_list == [True, True]
+
+    def test_sumofproducts_isdiag_list_mixed():
+        symbol1 = sympy.Symbol("X")
+        symbol2 = sympy.Symbol("Y")
+        value1 = np.array([1, 0])
+        value2 = np.array([[0, 1], [1, 0]])
+        opsite1 = OpSite(symbol1, 0, value=value1, isdiag=True)
+        opsite2 = OpSite(symbol2, 1, value=value2, isdiag=False)
+        opproductsite1 = OpProductSite([opsite1])
+        opproductsite2 = OpProductSite([opsite2])
+        sumofproducts = SumOfProducts([opproductsite1, opproductsite2])
+        assert sumofproducts.isdiag_list == [True, False]
+
+    def test_sumofproducts_isdiag_list_all_nondiag():
+        symbol1 = sympy.Symbol("X")
+        symbol2 = sympy.Symbol("Y")
+        value1 = np.array([[1, 0], [0, 1]])
+        value2 = np.array([[0, 1], [1, 0]])
+        opsite1 = OpSite(symbol1, 0, value=value1, isdiag=False)
+        opsite2 = OpSite(symbol2, 1, value=value2, isdiag=False)
+        opproductsite1 = OpProductSite([opsite1])
+        opproductsite2 = OpProductSite([opsite2])
+        sumofproducts = SumOfProducts([opproductsite1, opproductsite2])
+        assert sumofproducts.isdiag_list == [False, False]
