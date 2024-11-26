@@ -10,6 +10,23 @@ from .operators import SumOfProducts
 
 
 class AssignManager:
+    """
+    Manages the assignment of operators in a bipartite graph structure.
+
+    Args:
+        operator (SumOfProducts): The operator to be managed.
+
+    Attributes:
+        operator (SumOfProducts): The operator to be managed.
+        ndim (int): The number of dimensions of the operator.
+        nops (int): The number of operations in the operator.
+        W_assigns (list[list[int]]): The assignment matrix for the operators.
+        coef_site (list[int]): The coefficient site for each operator.
+        unique_ops (list[list[int]]): The unique operations for each dimension.
+        Wsym (list[sympy.Matrix]): The symbolic representation of the assignment matrix.
+
+    """
+
     def __init__(
         self,
         operator: SumOfProducts,
@@ -224,6 +241,15 @@ class AssignManager:
         return Unew
 
     def assign(self, keep_symbol: bool = False) -> list[sympy.Matrix]:
+        """
+        Assigns new values to the internal matrices and updates the symbolic representation.
+
+        Args:
+            keep_symbol (bool): If True, keeps the symbolic representation during the update. Defaults to False.
+
+        Returns:
+            list[sympy.Matrix]: The updated list of symbolic matrices.
+        """
         Unew = None
         for isite in range(self.ndim):
             Unew = self._update(isite, Unew, keep_symbol)
@@ -233,6 +259,15 @@ class AssignManager:
         return self.Wsym
 
     def show_graph(self) -> None:
+        """
+        Visualizes the bipartite graph using the provided operator, W_assigns, and coef_site.
+
+        This method calls the `show_assigns` function from the `pympo.visualize` module
+        to display the graph representation of the bipartite structure.
+
+        Returns:
+            None
+        """
         pympo.visualize.show_assigns(
             self.operator, self.W_assigns, self.coef_site
         )
@@ -242,9 +277,26 @@ class AssignManager:
         dtype=np.complex128,
         subs: dict[sympy.Symbol, int | float | complex] | None = None,
     ) -> list[NDArray]:
+        """
+        Generate a numerical Matrix Product Operator (MPO) representation.
+
+        Args:
+            dtype (numpy.dtype, optional): The data type of the MPO elements.
+                Defaults to np.complex128.
+            subs (dict[sympy.Symbol, int | float | complex] | None, optional):
+                A dictionary of substitutions for symbolic coefficients.
+                Defaults to None.
+
+        Returns:
+            list[NDArray]: A list of numpy arrays representing the MPO.
+
+        Raises:
+            ValueError: If the dtype is not supported or if a coefficient is not a number.
+
+        """
         mpo = []
         n_basis_list = self.operator.nbasis_list
-        is_diag_list = self.operator.is_diag_list
+        isdiag_list = self.operator.isdiag_list
         coef_list = []
         for op in self.operator.ops:
             coef = op.coef
@@ -267,8 +319,8 @@ class AssignManager:
         for isite in range(self.ndim):
             left_dim, right_dim = self._get_bond_dim(isite)
             n_basis = n_basis_list[isite]
-            is_diag = is_diag_list[isite]
-            if is_diag:
+            isdiag = isdiag_list[isite]
+            if isdiag:
                 core = np.zeros((left_dim, n_basis, right_dim), dtype=dtype)
             else:
                 core = np.zeros(
@@ -278,9 +330,9 @@ class AssignManager:
             for k in self.unique_ops[isite]:
                 left_index, right_index = self._get_bond_index(isite, k)
                 opisite = self.operator.ops[k].get_site_value(
-                    isite, n_basis=n_basis, is_diag=is_diag
+                    isite, n_basis=n_basis, isdiag=isdiag
                 )
-                if is_diag:
+                if isdiag:
                     assert opisite.shape == (n_basis,)
                 else:
                     assert opisite.shape == (n_basis, n_basis)
@@ -289,17 +341,17 @@ class AssignManager:
                     assert isinstance(
                         coef, int | float | complex
                     ), f"{coef=} is not a number"
-                    if is_diag:
+                    if isdiag:
                         core[left_index, :, right_index] += coef * opisite
                     else:
                         core[left_index, :, :, right_index] += coef * opisite
                 elif self.coef_site[k] < isite:
-                    if is_diag:
+                    if isdiag:
                         core[left_index, :, right_index] += opisite
                     else:
                         core[left_index, :, :, right_index] += opisite
                 else:
-                    if is_diag:
+                    if isdiag:
                         assert np.allclose(
                             core[left_index, :, right_index], 0
                         ) or np.allclose(
@@ -323,6 +375,17 @@ def get_bipartite(
     V: set[str] | list[str],
     E: set[tuple[str, str]] | list[tuple[str, str]],
 ) -> nx.Graph:
+    """
+    Create a bipartite graph from two sets/lists of nodes and a set/list of edges.
+
+    Parameters:
+        U (set[str] | list[str]): A set or list of nodes for the first partition.
+        V (set[str] | list[str]): A set or list of nodes for the second partition.
+        E (set[tuple[str, str]] | list[tuple[str, str]]): A set or list of edges, where each edge is represented as a tuple of two nodes (one from U and one from V).
+
+    Returns:
+        nx.Graph: A NetworkX graph object representing the bipartite graph.
+    """
     G = nx.Graph()
     for u in U:
         G.add_node(u, bipartite=0)
@@ -339,6 +402,22 @@ def get_UVE(
     isite: int,
     Unew: list[str] | None = None,
 ) -> tuple[list[str], list[str], list[tuple[str, str]], list[tuple[str, str]]]:
+    """
+    Extracts and returns the sets of U, V, and E symbols and their assignments from a given operator.
+
+    Parameters:
+        operator (SumOfProducts): The operator containing the sum of products.
+        W_assigns (list[list[int]]): A list of lists containing integer assignments for each operator.
+        isite (int): The current site index.
+        Unew (list[str] | None, optional): A list of new U symbols. Defaults to None.
+
+    Returns:
+    tuple[list[str], list[str], list[tuple[str, str]], list[tuple[str, str]]]:
+        - U: List of unique U symbols as strings.
+        - V: List of unique V symbols as strings.
+        - E: List of tuples representing edges between U and V symbols.
+        - E_assigns: List of tuples representing the assignments of U and V symbols for each operator.
+    """
     Usym = set()
     Vsym = set()
     Esym = set()
@@ -367,6 +446,21 @@ def get_UVE(
 
 
 def get_maximal_matching(G: nx.Graph) -> dict[str, str]:
+    """
+    Compute the maximal matching for a bipartite graph.
+    This function takes a bipartite graph `G` and returns a dictionary representing
+    the maximal matching. The function ensures that the graph is bipartite and handles
+    disconnected graphs by splitting them into connected components before computing
+    the matching.
+
+    Parameters:
+        G (nx.Graph): A NetworkX graph object representing a bipartite graph.
+    Returns:
+        dict[str, str]: A dictionary where keys and values are nodes in the graph, representing
+                    the maximal matching pairs.
+    Raises:
+        AssertionError: If the input graph `G` or any of its connected components is not bipartite.
+    """
     assert nx.is_bipartite(G)
     # nx.bipartite.maximum_matching(G) cannot work when graph is disconnected
     # thus, before execution, we split the graph into connected components
@@ -410,6 +504,35 @@ def assign_core(
     coef_site: list[int],
     visualize: bool = True,
 ) -> tuple[list[str], sympy.Matrix]:
+    """
+    Assigns core vertices and updates the bipartite graph representation.
+    Parameters:
+    -----------
+    min_vertex_cover : list[str]
+        The minimum vertex cover of the bipartite graph.
+    U : list[str]
+        List of vertices in set U.
+    V : list[str]
+        List of vertices in set V.
+    E : list[tuple[str, str]]
+        List of edges in the bipartite graph.
+    operators : SumOfProducts
+        The operators to be assigned.
+    isite : int
+        The current site index.
+    W_assigns : list[list[int]]
+        The assignments of W.
+    E_assigns : list[tuple[str, str]]
+        The assignments of edges.
+    coef_site : list[int]
+        The coefficient sites.
+    visualize : bool, optional
+        Whether to visualize the bipartite graph and assignments (default is True).
+    Returns:
+    --------
+    tuple[list[str], sympy.Matrix]
+        A tuple containing the updated list of vertices in U and the matrix Wi.
+    """
     Unew: list[str] = []  # U[1..i]
     unique_ops = []
     update_coef_ops = []

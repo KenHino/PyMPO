@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from bisect import bisect_left
-from typing import Iterator
+from typing import Iterator, Sequence, overload
 
 import numpy as np
 import sympy
@@ -11,13 +11,20 @@ from numpy.typing import NDArray
 
 class OpSite:
     """
+    Represents an operator acting on a specific site in a quantum system.
+
+    Attributes:
+        symbol (sympy.Basic): The symbolic representation of the operator.
+        isite (int): The site index on which the operator acts.
+        value (NDArray | None): The numerical value of the operator, if available.
+        isdiag (bool): Indicates if the operator is diagonal.
+
     Operator z_i acting on site i.
     """
 
     symbol: sympy.Basic
     isite: int
     value: NDArray | None
-    coef: int | float | complex | sympy.Basic
     isdiag: bool
 
     def __init__(
@@ -26,27 +33,23 @@ class OpSite:
         isite: int,
         *,
         value: NDArray | None = None,
-        coef: int | float | complex | sympy.Basic | str = 1,
         isdiag: bool = False,
     ) -> None:
         if isinstance(symbol, sympy.Basic):
             self.symbol = symbol
         elif isinstance(symbol, str):
-            self.symbol = sympy.Symbol(symbol)
+            self.symbol = sympy.Symbol(symbol, commutative=False)
         else:
             raise ValueError("Invalid type", type(symbol))
         self.isite = isite
         self.value = value
-        if isinstance(coef, str):
-            self.coef = sympy.Basic(coef)
-        self.coef = coef
         if value is not None:
             self.isdiag = value.ndim == 1
         else:
             self.isdiag = isdiag
 
     def __repr__(self) -> str:
-        retval = self.symbol * self.coef
+        retval = self.symbol
         assert isinstance(retval, sympy.Basic)
         return retval.__repr__()
 
@@ -58,20 +61,32 @@ class OpSite:
         other: int | float | complex | sympy.Basic | OpSite | OpProductSite,
     ) -> OpSite | OpProductSite:
         if isinstance(other, int | float | complex | sympy.Basic):
-            return OpSite(
-                self.symbol,
-                self.isite,
-                value=self.value,
-                coef=self.coef * other,
-                isdiag=self.isdiag,
-            )
+            retval = OpProductSite([self]) * other
+            assert isinstance(retval, OpProductSite)
+            return retval
         elif isinstance(other, OpSite):
             if self.isite != other.isite:
                 return OpProductSite([self, other])
             else:
-                raise NotImplementedError(
-                    "Operator is not always commutative, thus multiplication of the same site is intentionally disabled."  # noqa E501
-                )
+                symbol = self.symbol * other.symbol
+                isite = self.isite
+                isdiag = self.isdiag and other.isdiag
+                if self.value is not None and other.value is not None:
+                    if isdiag:
+                        value = self.value * other.value
+                    else:
+                        if self.value.ndim == 1:
+                            value1 = np.diag(self.value)
+                        else:
+                            value1 = self.value
+                        if other.value.ndim == 1:
+                            value2 = np.diag(other.value)
+                        else:
+                            value2 = other.value
+                        value = value1 @ value2
+                else:
+                    value = None
+                return OpSite(symbol, isite, value=value, isdiag=isdiag)
         elif isinstance(other, OpProductSite):
             return OpProductSite([self] + other.ops)
         else:
@@ -81,7 +96,11 @@ class OpSite:
         self,
         other: int | float | complex | sympy.Basic | OpSite | OpProductSite,
     ) -> OpSite | OpProductSite:
-        return self.__mul__(other)
+        if isinstance(other, int | float | complex | sympy.Basic):
+            """ Commutative """
+            return self.__mul__(other)
+        else:
+            raise ValueError(f"Invalid type: {type(other)=}")
 
     def __truediv__(self, other: int | float | complex | sympy.Basic) -> OpSite:
         if isinstance(other, int | float | complex | sympy.Basic):
@@ -94,22 +113,23 @@ class OpSite:
     def __rtruediv__(
         self, other: int | float | complex | sympy.Basic
     ) -> OpSite:
-        return self.__truediv__(other)
+        if isinstance(other, int | float | complex | sympy.Basic):
+            return self.__truediv__(other)
+        else:
+            raise ValueError(f"Invalid type: {type(other)=}")
 
     def __add__(
-        self, other: OpSite | OpProductSite | SumOfProducts
+        self,
+        other: OpSite
+        | OpProductSite
+        | SumOfProducts
+        | int
+        | float
+        | complex
+        | sympy.Basic,
     ) -> OpSite | SumOfProducts:
         if isinstance(other, OpSite):
-            if self.isite != other.isite:
-                return SumOfProducts([self, other])
-            else:
-                if self.value is not None or other.value is not None:
-                    raise NotImplementedError()
-                symbol = self.symbol * self.coef + other.symbol * other.coef
-                isite = self.isite
-                value = None
-                isdiag = self.isdiag and other.isdiag
-                return OpSite(symbol, isite, value=value, coef=1, isdiag=isdiag)
+            return SumOfProducts([self, other])
         elif isinstance(other, OpProductSite):
             return SumOfProducts([self, other])
         elif isinstance(other, SumOfProducts):
@@ -118,6 +138,13 @@ class OpSite:
             other.coefs.append(op_product.coef)
             other.symbols.append(op_product.symbol)
             return other
+        elif isinstance(other, int | float | complex | sympy.Basic):
+            if isinstance(self.value, np.ndarray):
+                n_basis = self.value.shape[0]
+            else:
+                n_basis = None
+            eye = get_eye_site(self.isite, n_basis=n_basis)
+            return self + eye
         else:
             raise ValueError("Invalid type")
 
@@ -131,11 +158,25 @@ class OpSite:
 
 
 def get_eye_site(i: int, n_basis: int | None = None) -> OpSite:
+    """
+    Create an identity operator site.
+
+    Parameters:
+    -----------
+    i (int): The index of the site.
+    n_basis (int | None, optional): The number of basis states. If provided,
+                                    an array of ones with length `n_basis` is created.
+                                    Defaults to None.
+
+    Returns:
+    --------
+    OpSite: An operator site with the identity operator.
+    """
     value: NDArray | None = None
     if isinstance(n_basis, int):
         value = np.ones(n_basis)
     return OpSite(
-        sympy.Symbol(r"\hat{1}_" + f"{i}"), i, value=value, coef=1, isdiag=True
+        sympy.Symbol(r"\hat{1}_" + f"{i}"), i, value=value, isdiag=True
     )
 
 
@@ -161,6 +202,14 @@ def omit_eye_site(latex_symbol: str) -> str:
 
 class OpProductSite:
     """
+    Represents a product of operators acting on multiple sites, such as z_i * z_j * z_k.
+
+    Attributes:
+        coef (int | float | complex | sympy.Basic): Coefficient of the operator product.
+        symbol (sympy.Basic): Symbolic representation of the operator product.
+        ops (list[OpSite]): List of operators in the product.
+        sites (list[int]): List of site indices where the operators act.
+
     Product of operators acting on multiple sites like
     z_i * z_j * z_k
 
@@ -178,8 +227,6 @@ class OpProductSite:
         self.symbol = 1
         self.coef = 1
         for op in self.ops:
-            self.coef *= op.coef
-            op.coef = 1  # CAUTION original coef is set to 1
             self.symbol *= op.symbol
             self.sites.append(op.isite)
         if self._is_duplicated():
@@ -187,33 +234,114 @@ class OpProductSite:
         if not self._is_sorted():
             raise ValueError("Site index is not sorted")
 
+    def replace(self, new_op: OpSite) -> None:
+        """
+        Replace an existing operator in the list with a new operator.
+
+        Args:
+            new_op (OpSite): The new operator to replace the existing one.
+
+        Raises:
+            AssertionError: If the site of the new operator is not found in the existing operators.
+
+        Modifies:
+            self.symbol: Updates the symbol by multiplying the symbols of all operators.
+            self.ops: Replaces the operator at the matching site with the new operator.
+        """
+        self.symbol = 1
+        is_replaced = False
+        for i, op in enumerate(self.ops):
+            if op.isite == new_op.isite:
+                self.ops[i] = new_op
+                is_replaced = True
+            self.symbol *= self.ops[i].symbol
+        assert is_replaced, f"{new_op.isite=} is not found in {self.sites=}"
+
     def __repr__(self) -> str:
         return " * ".join([op.__repr__() for op in self.ops])
 
     def __str__(self) -> str:
         return " * ".join([op.__str__() for op in self.ops])
 
+    @overload
     def __mul__(
         self,
         other: int | float | complex | sympy.Basic | OpSite | OpProductSite,
-    ) -> OpProductSite:
+    ) -> OpProductSite: ...
+
+    @overload
+    def __mul__(self, other: SumOfProducts) -> SumOfProducts: ...
+
+    def __mul__(
+        self,
+        other: int
+        | float
+        | complex
+        | sympy.Basic
+        | OpSite
+        | OpProductSite
+        | SumOfProducts,
+    ) -> OpProductSite | SumOfProducts:
         if isinstance(other, int | float | complex | sympy.Basic):
             self.coef *= other
             return self
         elif isinstance(other, OpSite):
             if other.isite in self.sites:
-                raise ValueError("Duplicate site index")
+                idx = bisect_left(self.sites, other.isite)
+                self.symbol *= other.symbol
+                same_site_op = self.ops[idx]
+                isdiag = same_site_op.isdiag and other.isdiag
+                if same_site_op.value is not None and other.value is not None:
+                    if isdiag:
+                        value = same_site_op.value * other.value
+                    else:
+                        if same_site_op.value.ndim == 1:
+                            value1 = np.diag(same_site_op.value)
+                        else:
+                            value1 = same_site_op.value
+                        if other.value.ndim == 1:
+                            value2 = np.diag(other.value)
+                        else:
+                            value2 = other.value
+                        value = value1 @ value2
+                else:
+                    value = None
+                site_symbol = same_site_op.symbol * other.symbol
+                new_op = OpSite(
+                    site_symbol,
+                    same_site_op.isite,
+                    value=value,
+                    isdiag=isdiag,
+                )
+                self.ops[idx] = new_op
+                return self
             else:
                 idx = bisect_left(self.sites, other.isite)
-                self.coef *= other.coef
                 self.symbol *= other.symbol
-                other.coef = 1  # CAUTION original coef is set to 1
                 self.ops.insert(idx, other)
                 self.sites.insert(idx, other.isite)
                 return self
         elif isinstance(other, OpProductSite):
-            ops = self.ops + other.ops
-            return OpProductSite(ops)
+            coef = self.coef * other.coef
+            new_product = OpProductSite(self.ops)
+            for op in other.ops:
+                assert isinstance(op, OpSite)
+                _new_product = new_product * op
+                assert isinstance(_new_product, OpProductSite)
+                new_product = _new_product
+            new_product.coef = coef
+            return new_product
+        elif isinstance(other, SumOfProducts):
+            ops = []
+            opproduct1 = OpProductSite(self.ops)
+            opproduct1.coef = self.coef
+            for opproduct2 in other.ops:
+                assert isinstance(opproduct2, OpProductSite)
+                _new_product = opproduct1 * opproduct2
+                assert isinstance(_new_product, OpProductSite)
+                ops.append(_new_product)
+            return SumOfProducts(ops)
+
         else:
             raise ValueError(f"Invalid type: {type(other)=}")
 
@@ -221,7 +349,14 @@ class OpProductSite:
         self,
         other: int | float | complex | sympy.Basic | OpSite | OpProductSite,
     ) -> OpProductSite:
-        return self.__mul__(other)
+        if isinstance(other, int | float | complex | sympy.Basic):
+            retval = self.__mul__(other)
+        elif isinstance(other, OpSite | OpProductSite):
+            retval = other.__mul__(self)  # type: ignore
+        else:
+            raise ValueError(f"Invalid type: {type(other)=}")
+        assert isinstance(retval, OpProductSite)
+        return retval
 
     def __truediv__(
         self, other: int | float | complex | sympy.Basic
@@ -234,7 +369,14 @@ class OpProductSite:
             raise ValueError(f"Invalid type: {type(other)=}")
 
     def __add__(
-        self, other: OpSite | OpProductSite | SumOfProducts
+        self,
+        other: OpSite
+        | OpProductSite
+        | SumOfProducts
+        | int
+        | float
+        | complex
+        | sympy.Basic,
     ) -> SumOfProducts:
         if isinstance(other, OpSite):
             return SumOfProducts([self, other])
@@ -245,16 +387,59 @@ class OpProductSite:
             other.coefs.append(self.coef)
             other.symbols.append(self.symbol)
             return other
+        elif isinstance(other, int | float | complex | sympy.Basic):
+            const = get_eye_site(self.sites[0]) * other
+            return SumOfProducts([self, const])
         else:
             raise ValueError(f"Invalid type: {type(other)=}")
 
-    def __sub__(
-        self, other: OpSite | OpProductSite | SumOfProducts
+    def __radd__(
+        self,
+        other: OpSite
+        | OpProductSite
+        | SumOfProducts
+        | int
+        | float
+        | complex
+        | sympy.Basic,
     ) -> SumOfProducts:
-        if isinstance(other, OpSite | OpProductSite | SumOfProducts):
+        return self.__add__(other)
+
+    def __sub__(
+        self,
+        other: OpSite
+        | OpProductSite
+        | SumOfProducts
+        | int
+        | float
+        | complex
+        | sympy.Basic,
+    ) -> SumOfProducts:
+        if isinstance(
+            other,
+            OpSite
+            | OpProductSite
+            | SumOfProducts
+            | int
+            | float
+            | complex
+            | sympy.Basic,
+        ):
             return self + (-1) * other
         else:
             raise ValueError(f"Invalid type: {type(other)=}")
+
+    def __rsub__(
+        self,
+        other: OpSite
+        | OpProductSite
+        | SumOfProducts
+        | int
+        | float
+        | complex
+        | sympy.Basic,
+    ) -> SumOfProducts:
+        return self.__sub__((-1) * other)
 
     def _is_duplicated(self) -> bool:
         return len(self.sites) != len(set(self.sites))
@@ -320,9 +505,7 @@ class OpProductSite:
         else:
             raise ValueError("Invalid type")
 
-    def get_site_value(
-        self, isite: int, n_basis: int, is_diag: bool
-    ) -> NDArray:
+    def get_site_value(self, isite: int, n_basis: int, isdiag: bool) -> NDArray:
         """
         Get the value of the operator acting on the site isite.
 
@@ -337,7 +520,7 @@ class OpProductSite:
         if len(self.sites) > idx and self.sites[idx] == isite:
             value = self.ops[idx].value
             assert isinstance(value, np.ndarray)
-            if is_diag:
+            if isdiag:
                 assert value.shape == (
                     n_basis,
                 ), f"{value.shape=} while {n_basis=}"
@@ -349,7 +532,7 @@ class OpProductSite:
                 ), f"{value.shape=} while {n_basis=}"
             return value
         else:
-            if is_diag:
+            if isdiag:
                 return np.ones(n_basis)
             else:
                 return np.eye(n_basis)
@@ -360,13 +543,21 @@ class SumOfProducts:
     Sum of products of operators acting on multiple sites like
     z_i * z_j + z_k * z_l
 
+    Args:
+        ops (Sequence[OpProductSite | OpSite], optional): List of operator products. Defaults to [].
+
+    Attributes:
+        coefs (list[int | float | complex | sympy.Basic]): Coefficients of the operator products.
+        ops (list[OpProductSite]): List of operator products.
+        symbols (list[sympy.Basic]): List of symbolic representations of the operator products.
+
     """
 
     coefs: list[int | float | complex | sympy.Basic]
     ops: list[OpProductSite]
     symbols: list[sympy.Basic]
 
-    def __init__(self, ops: list[OpProductSite | OpSite]) -> None:
+    def __init__(self, ops: Sequence[OpProductSite | OpSite] = []) -> None:
         self.coefs = []
         self.ops = []
         self.symbols = []
@@ -378,12 +569,84 @@ class SumOfProducts:
             self.coefs.append(op.coef)
             self.symbols.append(op.symbol)
 
+    def simplify(self) -> SumOfProducts:
+        """
+        Concatenate common operator such as
+        q_i * a_j + q_i * a^dagger_j -> q_i * (a_j + a^dagger_j)
+
+        Note that the computational complexity is O(n^2) where n is the number of operators.
+        """
+        skip_flag = [False] * len(self.ops)
+        new_ops = []
+        for i in range(len(self.ops)):
+            if skip_flag[i]:
+                continue
+            for j in range(i + 1, len(self.ops)):
+                if skip_flag[j]:
+                    continue
+                if self.ops[i].sites != self.ops[j].sites:
+                    continue
+                if self.ops[i].coef != self.ops[j].coef:
+                    continue
+                continue_flag = False
+                op_i_common = None
+                op_j_common = None
+                for op_i, op_j in zip(
+                    self.ops[i].ops, self.ops[j].ops, strict=True
+                ):
+                    if op_i.symbol != op_j.symbol:
+                        if op_i_common is not None:
+                            # When two operators are not common, skip the loop.
+                            continue_flag = True
+                            break
+                        op_i_common = op_i
+                        op_j_common = op_j
+                if continue_flag or op_i_common is None:
+                    # Either two or more operators are not common or no common operator is found.
+                    continue
+                assert isinstance(op_i_common, OpSite) and isinstance(
+                    op_j_common, OpSite
+                )
+                assert op_j_common.isite == op_i_common.isite
+                skip_flag[j] = True
+                new_symbol = op_i_common.symbol + op_j_common.symbol
+                new_isdiag = op_i_common.isdiag and op_j_common.isdiag
+                if (
+                    op_i_common.value is not None
+                    and op_j_common.value is not None
+                ):
+                    if new_isdiag:
+                        new_value = op_i_common.value * op_j_common
+                    else:
+                        if op_i_common.value.ndim == 1:
+                            value1 = np.diag(op_i_common.value)
+                        else:
+                            value1 = op_i_common.value
+                        if op_j_common.value.ndim == 1:
+                            value2 = np.diag(op_j_common.value)
+                        else:
+                            value2 = op_j_common.value
+                        new_value = value1 + value2
+                else:
+                    new_value = None
+                new_op = OpSite(
+                    new_symbol,
+                    op_i_common.isite,
+                    value=new_value,
+                    isdiag=new_isdiag,
+                )
+                self.ops[i].replace(new_op)
+            new_ops.append(self.ops[i])
+        return SumOfProducts(new_ops)
+
     @property
-    def symbol(self) -> sympy.Basic:
+    def symbol(self) -> sympy.Basic | int | float | complex:
         symbol = 0
         for i in range(len(self.ops)):
             symbol += self.ops[i].symbol * self.coefs[i]
-        assert isinstance(symbol, sympy.Basic)
+        assert isinstance(
+            symbol, sympy.Basic | int | float | complex
+        ), f"{symbol=}"
         return symbol
 
     @property
@@ -426,24 +689,31 @@ class SumOfProducts:
         return nbasis_list
 
     @property
-    def is_diag_list(self) -> list[bool]:
-        is_diag_list = [True] * self.ndim
+    def isdiag_list(self) -> list[bool]:
+        isdiag_list = [True] * self.ndim
         for opproduct in self.ops:
             for isite, opsite in zip(
                 opproduct.sites, opproduct.ops, strict=True
             ):
-                is_diag_list[isite] &= opsite.isdiag
-        return is_diag_list
+                isdiag_list[isite] &= opsite.isdiag
+        return isdiag_list
 
     def __add__(
-        self, other: OpSite | OpProductSite | SumOfProducts
+        self,
+        other: OpSite
+        | OpProductSite
+        | SumOfProducts
+        | int
+        | float
+        | complex
+        | sympy.Basic,
     ) -> SumOfProducts:
-        if isinstance(other, OpSite):
+        if isinstance(other, int | float | complex | sympy.Basic):
+            op_product = OpProductSite([get_eye_site(self.ops[0].sites[0])])
+            return self + op_product * other
+        elif isinstance(other, OpSite):
             op_product = OpProductSite([other])
-            self.ops.append(op_product)
-            self.coefs.append(op_product.coef)
-            self.symbols.append(op_product.symbol)
-            return self
+            return self + op_product
         elif isinstance(other, OpProductSite):
             self.ops.append(other)
             self.coefs.append(other.coef)
@@ -467,17 +737,41 @@ class SumOfProducts:
             raise ValueError(f"Invalid type: {type(other)=}")
 
     def __mul__(
-        self, other: int | float | complex | sympy.Basic
+        self,
+        other: int
+        | float
+        | complex
+        | sympy.Basic
+        | OpSite
+        | OpProductSite
+        | SumOfProducts,
     ) -> SumOfProducts:
-        for i in range(len(self.coefs)):
-            self.coefs[i] *= other
-            self.symbols[i] *= other
-        return self
+        if isinstance(other, int | float | complex | sympy.Basic):
+            for i in range(len(self.coefs)):
+                self.ops[i] *= other
+                self.coefs[i] = self.ops[i].coef
+            return self
+        elif isinstance(other, OpSite):
+            for op in self.ops:
+                op *= other
+            return self
+        elif isinstance(other, OpProductSite):
+            for op, coef in zip(self.ops, self.coefs, strict=True):
+                op *= other
+                coef *= other.coef
+            return self
+        elif isinstance(other, SumOfProducts):
+            raise NotImplementedError()
+        else:
+            raise ValueError(f"Invalid type: {type(other)=}")
 
     def __rmul__(
         self, other: int | float | complex | sympy.Basic
     ) -> SumOfProducts:
-        return self.__mul__(other)
+        if isinstance(other, int | float | complex | sympy.Basic):
+            return self.__mul__(other)
+        else:
+            raise ValueError(f"Invalid type: {type(other)=}")
 
     def to_mpo(self) -> list[NDArray]:
         raise NotImplementedError()

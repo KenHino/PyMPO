@@ -19,5 +19,6 @@ documentation for details.
    example/autompo-num.ipynb
    example/pytdscf-henon-heiles.ipynb
    example/pytdscf-taylor.ipynb
+   example/autompo-sym-holstein.ipynb
 
    pympo
