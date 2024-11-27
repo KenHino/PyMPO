@@ -617,7 +617,7 @@ class SumOfProducts:
                     and op_j_common.value is not None
                 ):
                     if new_isdiag:
-                        new_value = op_i_common.value * op_j_common
+                        new_value = op_i_common.value + op_j_common.value
                     else:
                         if op_i_common.value.ndim == 1:
                             value1 = np.diag(op_i_common.value)
