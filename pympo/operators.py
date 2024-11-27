@@ -102,17 +102,18 @@ class OpSite:
         else:
             raise ValueError(f"Invalid type: {type(other)=}")
 
-    def __truediv__(self, other: int | float | complex | sympy.Basic) -> OpSite:
+    def __truediv__(
+        self, other: int | float | complex | sympy.Basic
+    ) -> OpSite | OpProductSite:
         if isinstance(other, int | float | complex | sympy.Basic):
             retval = self.__mul__(1 / other)
-            assert isinstance(retval, OpSite)
             return retval
         else:
             raise ValueError(f"Invalid type: {type(other)=}")
 
     def __rtruediv__(
         self, other: int | float | complex | sympy.Basic
-    ) -> OpSite:
+    ) -> OpSite | OpProductSite:
         if isinstance(other, int | float | complex | sympy.Basic):
             return self.__truediv__(other)
         else:
