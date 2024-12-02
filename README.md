@@ -2,7 +2,7 @@
 Automatical and symbolical construction of matrix product operator (MPO)
 
 ## Document
-https://kenhino.github.io/PyMPO/example/autompo.html
+https://kenhino.github.io/PyMPO/example/autompo-sym.html
 
 ## Installation
 
