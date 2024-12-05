@@ -1,5 +1,5 @@
 # PyMPO
-Automatical and symbolical construction of matrix product operator (MPO)
+Automatic and symbolic construction of matrix product operator (MPO)
 
 ## Document
 https://kenhino.github.io/PyMPO/example/autompo-sym.html
