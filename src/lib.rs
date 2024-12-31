@@ -10,7 +10,7 @@ fn get_min_vertex_cover(
 ) -> Vec<String> {
     // Find the minimum vertex cover in the bipartite graph with the given maximum matching
     // The input is a list of vertices u and v, and a list of edges e
-    // The output is a list of vertices that form the minimum vertex cover
+    // tHE OUTPUT IS A LIST OF VERTICES THAT FORM THE MINIMUM VERTEX COVER
     // https://www.slideshare.net/slideshow/ss-86894312/86894312
 
     let mut not_left_vertex_cover_set = HashSet::new();
@@ -44,16 +44,16 @@ fn get_min_vertex_cover(
 
         if let Some(v_vertices) = u_to_v.get(u_vertex) {
             for v in v_vertices {
-                // Vの頂点が既に処理済みの場合はスキップ
+                // Skip if the vertex in V side is already processed
                 if right_vertex_cover_set.contains(v) {
                     continue;
                 }
 
                 right_vertex_cover_set.insert(v.clone());
 
-                // マッチングされたU側の頂点があれば再帰的に処理
+                // if there is a vertex in U side that is matched
                 if let Some(next_u) = max_matching.get(v) {
-                    // U側の頂点が未処理の場合のみ再帰
+                    // if vertex in U side is not processed yet
                     if !not_left_vertex_cover_set.contains(next_u) {
                         traverse_alternating_path(
                             next_u,
@@ -68,7 +68,6 @@ fn get_min_vertex_cover(
         }
     }
 
-    // メイン関数内での呼び出し部分
     for u_i in u.clone() {
         if max_matching.contains_key(&u_i) {
             continue;
