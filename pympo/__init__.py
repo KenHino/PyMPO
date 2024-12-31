@@ -6,6 +6,7 @@ from .bipartite import (
     get_min_vertex_cover,
     get_UVE,
 )
+from .config import config
 from .operators import OpSite, SumOfProducts, get_eye_site
 from .visualize import (
     show_assigns,
@@ -17,6 +18,7 @@ from .visualize import (
 __all__ = [
     "assign_core",
     "get_bipartite",
+    "config",
     "get_maximal_matching",
     "get_min_vertex_cover",
     "get_UVE",
