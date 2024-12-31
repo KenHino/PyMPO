@@ -234,6 +234,35 @@ class OpProductSite:
             raise ValueError("Duplicate site index")
         if not self._is_sorted():
             raise ValueError("Site index is not sorted")
+        self.left_product: list[sympy.Basic] = None  # type: ignore
+        self.right_product: list[sympy.Basic] = None  # type: ignore
+
+    def _set_left_product(self) -> None:
+        self.left_product = [self.ops[0].symbol]
+        k = 0
+        for i in range(self.sites[0] + 1, self.sites[-1] + 1):
+            if i in self.sites[1:]:
+                k += 1
+                self.left_product.append(
+                    self.left_product[-1] * self.ops[k].symbol
+                )
+            else:
+                self.left_product.append(self.left_product[-1])
+        assert k == len(self.ops) - 1, f"{k=}, {len(self.ops)=}, {self.sites=}"
+
+    def _set_right_product(self) -> None:
+        self.right_product = [self.ops[-1].symbol]
+        k = len(self.ops) - 1
+        for i in range(self.sites[-1] - 1, self.sites[0] - 1, -1):
+            if i in self.sites[:-1]:
+                k -= 1
+                self.right_product.append(
+                    self.ops[k].symbol * self.right_product[-1]
+                )
+            else:
+                self.right_product.append(self.right_product[-1])
+        self.right_product = self.right_product[::-1]
+        assert k == 0, f"{k=}, {self.sites=}"
 
     def replace(self, new_op: OpSite) -> None:
         """
@@ -470,11 +499,62 @@ class OpProductSite:
         To Do:
             - Improve the performance of the function by memoization.
         """
+        if start_site + 1 == end_site:
+            if start_site in self.sites:
+                return self.ops[bisect_left(self.sites, start_site)].symbol
+            else:
+                return get_eye_site(start_site).symbol
+
+        if start_site <= self.sites[0]:
+            case_left = 0
+        elif start_site <= self.sites[-1]:
+            case_left = 1
+        else:
+            case_left = 2
+
+        if end_site <= self.sites[0]:
+            case_right = 0
+        elif end_site <= self.sites[-1]:
+            case_right = 1
+        else:
+            case_right = 2
+
+        match (case_left, case_right):
+            case (0, 0):
+                return get_eye_site(end_site).symbol
+            case (0, 1):
+                if self.left_product is None:
+                    self._set_left_product()
+                return self.left_product[end_site - self.sites[0]]
+            case (0, 2):
+                if self.left_product is None:
+                    self._set_left_product()
+                return self.left_product[-1]
+            case (1, 1):
+                return self._get_symbol_interval_intermidiate(
+                    start_site, end_site
+                )
+            case (1, 2):
+                if self.right_product is None:
+                    self._set_right_product()
+                return self.right_product[start_site - self.sites[0]]
+            case (2, 2):
+                return get_eye_site(start_site).symbol
+            case _:
+                raise ValueError(
+                    f"{case_left=}, {case_right=}, {start_site=}, {end_site=}"
+                )
+
+    def _get_symbol_interval_intermidiate(
+        self, start_site: int, end_site: int
+    ) -> sympy.Basic:
         symbol = 1
         idx = bisect_left(self.sites, start_site)
         is_eye = True
         for i in range(start_site, end_site):
             if len(self.sites) > idx and self.sites[idx] == i:
+                # If operator is 1_1 * 1_2 * 1_3 * z_4 * 1_5 ...
+                # skip 1_1 * 1_2 * 1_3
                 if is_eye:
                     symbol = self.ops[idx].symbol
                     is_eye = False
@@ -488,7 +568,9 @@ class OpProductSite:
                     symbol = get_eye_site(i).symbol
                 else:
                     pass
-        assert isinstance(symbol, sympy.Basic) or symbol == 1
+        if symbol == 1:
+            symbol = get_eye_site(start_site).symbol
+        assert isinstance(symbol, sympy.Basic)
         # self.symbol_intervals[(start_site, end_site)] = symbol
         return symbol
 

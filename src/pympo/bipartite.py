@@ -41,7 +41,9 @@ class AssignManager:
         self.unique_ops: list[list[int]] = [
             [iops for iops in range(self.nops)] for _ in range(self.ndim)
         ]
-        self.Wsym: list[sympy.Matrix] = self.reset_Wsym()
+        self.Wsym: list[sympy.Matrix] = [
+            None for _ in range(self.ndim)
+        ]  # self.reset_Wsym()
 
     def _get_bond_dim(self, isite: int) -> tuple[int, int]:
         if isite == 0:
@@ -69,6 +71,7 @@ class AssignManager:
             right_index = self.W_assigns[kops][isite]
         return left_index, right_index
 
+    # @profile
     def reset_core(self, isite: int) -> sympy.Matrix:
         shape = self._get_bond_dim(isite)
         core = sympy.zeros(*shape)
@@ -93,17 +96,20 @@ class AssignManager:
                 if core[left_index, right_index] == 0:
                     core[left_index, right_index] = opisite
                 else:
-                    assert (
-                        core[left_index, right_index] == opisite
-                    ), f"{core[left_index, right_index]=} while {op[isite]=} when {self.coef_site[k]=}, {isite=}"
+                    assert core[left_index, right_index] == opisite, (
+                        f"{core[left_index, right_index]=} while {op[isite]=} "
+                        f"when {self.coef_site[k]=}, {isite=}"
+                    )
         return core
 
+    # @profile
     def reset_Wsym(self) -> list[sympy.Matrix]:
         Wsym = []
         for isite in range(self.ndim):
             Wsym.append(self.reset_core(isite))
         return Wsym
 
+    # @profile
     def _get_UVE(
         self,
         isite: int,
@@ -132,10 +138,11 @@ class AssignManager:
                     U_op = str(prod_op[0])
             else:
                 raise ValueError("i must be greater than 0")
+            prod_op_isite_to_ndim = prod_op[isite + 1 : ndim]
             if keep_symbol:
-                V_op = prod_op[isite + 1 : ndim]
+                V_op = prod_op_isite_to_ndim
             else:
-                V_op = str(prod_op[isite + 1 : ndim])
+                V_op = str(prod_op_isite_to_ndim)
             if keep_symbol:
                 U_repr = sympy.srepr(U_op)
                 V_repr = sympy.srepr(V_op)
@@ -155,6 +162,7 @@ class AssignManager:
         assert all([E_assign is not None for E_assign in E_assigns])
         return Uset, Vset, Eset, E_assigns
 
+    # @profile
     def _update(
         self,
         isite: int,
@@ -164,8 +172,15 @@ class AssignManager:
         U, V, E, E_assigns = self._get_UVE(isite, Unew, keep_symbol)
         G = get_bipartite(U, V, E)
         max_matching = get_maximal_matching(G)
-        min_vertex_cover = get_min_vertex_cover(G, max_matching)
-        Unew = []
+        if pympo.config.backend == "py":
+            min_vertex_cover = get_min_vertex_cover(G, max_matching)
+        else:
+            min_vertex_cover = pympo._core.get_min_vertex_cover(
+                U, E, max_matching
+            )
+        assert is_vertex_cover(G, min_vertex_cover)
+        Unew: list[str] = []  # type: ignore
+        assert isinstance(Unew, list)
         self.unique_ops[isite] = []
         update_coef_ops = []
         # ops_list = [(k, op) for k, op in enumerate(self.operator.ops)]
@@ -198,7 +213,10 @@ class AssignManager:
                 # V.remove(vertex)
                 retained_E = []
                 remove_E = []
-                vertex_U_concat = 0
+                if keep_symbol:
+                    vertex_U_concat = 0
+                else:
+                    vertex_U_concat = ""  # type: ignore
                 for edge in E:
                     if vertex != edge[1]:
                         retained_E.append(edge)
@@ -213,21 +231,32 @@ class AssignManager:
                         self.W_assigns[k][isite] = j
                         opsite = op[isite]
                         if self.coef_site[k] >= isite:
-                            # isiteでcoefが複数回登場する場合にバグを引き起こす
                             self.unique_ops[isite].append(k)
                         elif opsite not in represent_ops:
-                            # isiteでcoefが必要な列と不要な列が両方ある場合にバグを引き起こす
                             self.unique_ops[isite].append(k)
                             represent_ops[opsite] = k
+                        op_0_to_isite = op[0 : isite + 1]
                         if self.coef_site[k] < isite:
-                            vertex_U_concat += op[0 : isite + 1]
+                            if keep_symbol:
+                                vertex_U_concat += op_0_to_isite
+                            else:
+                                vertex_U_concat += "+" + sympy.srepr(  # type: ignore
+                                    op_0_to_isite
+                                )
                         else:
                             update_coef_ops.append(k)
-                            # self.coef_site[k] = isite
-                            vertex_U_concat += op.coef * op[0 : isite + 1]
+                            if keep_symbol:
+                                vertex_U_concat += op.coef * op_0_to_isite
+                            else:
+                                vertex_U_concat += "+" + sympy.srepr(  # type: ignore
+                                    op.coef * op_0_to_isite
+                                )
                     # else:
                     # remained_ops_list.append((k, op))
-                Unew.append(sympy.srepr(vertex_U_concat))
+                if keep_symbol:
+                    Unew.append(sympy.srepr(vertex_U_concat))
+                else:
+                    Unew.append(vertex_U_concat)  # type: ignore
             E = retained_E  # type: ignore
             # ops_list = remained_ops_list
             # U = set()
@@ -240,6 +269,7 @@ class AssignManager:
             self.coef_site[k] = isite
         return Unew
 
+    # @profile
     def assign(self, keep_symbol: bool = False) -> list[sympy.Matrix]:
         """
         Assigns new values to the internal matrices and updates the symbolic representation.
@@ -253,7 +283,7 @@ class AssignManager:
         Unew = None
         for isite in range(self.ndim):
             Unew = self._update(isite, Unew, keep_symbol)
-            logger.info(f"assigned {isite=}/{self.ndim}")
+            logger.info(f"assigned {isite+1}/{self.ndim}")
         self.Wsym = self.reset_Wsym()
         # assert sympy.Mul(*self.Wsym).expand()[0] == self.operator.symbol
         return self.Wsym
@@ -272,6 +302,7 @@ class AssignManager:
             self.operator, self.W_assigns, self.coef_site
         )
 
+    # @profile
     def numerical_mpo(
         self,
         dtype=np.complex128,
@@ -303,7 +334,12 @@ class AssignManager:
             if isinstance(coef, int | float | complex):
                 coef_list.append(coef)
             elif isinstance(coef, sympy.Basic):
-                _coef = coef.subs(subs)
+                if subs is None:
+                    _coef = coef
+                elif coef in subs:
+                    _coef = subs[coef]  # type: ignore
+                else:
+                    _coef = coef.subs(subs)
                 if dtype == np.complex128:
                     _coef = complex(_coef)
                 elif dtype == np.float64:
@@ -461,14 +497,14 @@ def get_maximal_matching(G: nx.Graph) -> dict[str, str]:
     Raises:
         AssertionError: If the input graph `G` or any of its connected components is not bipartite.
     """
-    assert nx.is_bipartite(G)
+    # assert nx.is_bipartite(G)
     # nx.bipartite.maximum_matching(G) cannot work when graph is disconnected
     # thus, before execution, we split the graph into connected components
     M = {}
     for component in nx.connected_components(G):
         G_sub = G.subgraph(component)
-        assert nx.is_bipartite(G_sub)
         assert nx.is_connected(G_sub)
+        assert nx.is_bipartite(G_sub), f"{G_sub.nodes=} {G_sub.edges=}"
         M.update(nx.bipartite.maximum_matching(G_sub))
     return M
 
@@ -576,12 +612,13 @@ def assign_core(
                         unique_ops.append(k)
                         represent_ops[opsite] = k
 
+                    op_0_to_isite = op[0 : isite + 1]
                     if coef_site[k] < isite:
-                        vertex_U_concat += op[0 : isite + 1]
+                        vertex_U_concat += op_0_to_isite
                     else:
                         # coef_site[k] = isite
                         update_coef_ops.append(k)
-                        vertex_U_concat += op.coef * op[0 : isite + 1]
+                        vertex_U_concat += op.coef * op_0_to_isite
             Unew.append(sympy.srepr(vertex_U_concat))
         if visualize:
             pympo.visualize.show_bipartite(U, V, E, retained_E)
@@ -635,3 +672,11 @@ def assign_core(
                     Wi[left_index, right_index] == opisite
                 ), f"{Wi[left_index, right_index]=} while {op[isite]=} when {coef_site[k]=}, {isite=}"
     return Unew, Wi
+
+
+def is_vertex_cover(G: nx.Graph, vertex_cover: list[str]) -> bool:
+    for u, v in G.edges():
+        if u not in vertex_cover and v not in vertex_cover:
+            logger.debug(f"{u=} and {v=} are not in {vertex_cover=}")
+            return False
+    return True
