@@ -1,6 +1,8 @@
 # PyMPO
 Automatic and symbolic construction of matrix product operator (MPO)
 
+Python (Sympy) is employed as interface and Rust as part of backend.
+
 ## Document
 https://kenhino.github.io/PyMPO/example/autompo-sym.html
 
