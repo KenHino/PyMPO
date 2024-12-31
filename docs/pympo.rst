@@ -12,6 +12,14 @@ pympo.bipartite module
    :undoc-members:
    :show-inheritance:
 
+pympo.config module
+-------------------
+
+.. automodule:: pympo.config
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 pympo.operators module
 ----------------------
 

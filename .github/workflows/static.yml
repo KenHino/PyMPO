@@ -39,7 +39,7 @@ jobs:
         run: uv sync
       - name: build document
         run: |
-            uv run sphinx-apidoc -f -o docs pympo
+            uv run sphinx-apidoc -f -o docs src/pympo
             uv run sphinx-build -a docs docs/_build
       - name: Setup Pages
         uses: actions/configure-pages@v5

@@ -11,9 +11,9 @@ pympo documentation
    :caption: Contents:
 
    example/autompo-sym.ipynb
+   example/autompo-sym-holstein.ipynb
    example/autompo-num.ipynb
    example/pytdscf-henon-heiles.ipynb
    example/pytdscf-taylor.ipynb
-   example/autompo-sym-holstein.ipynb
 
    pympo
