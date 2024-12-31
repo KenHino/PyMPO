@@ -1,10 +1,6 @@
 use pyo3::prelude::*;
 use std::collections::{HashMap, HashSet};
 
-#[pyfunction]
-fn hello_from_bin() -> String {
-    "Hello from pympo!".to_string()
-}
 
 #[pyfunction]
 fn get_min_vertex_cover(
@@ -107,7 +103,6 @@ fn get_maximal_matching(
 /// import the module.
 #[pymodule]
 fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(hello_from_bin, m)?)?;
     m.add_function(wrap_pyfunction!(get_min_vertex_cover, m)?)?;
     m.add_function(wrap_pyfunction!(get_maximal_matching, m)?)?;
     Ok(())
