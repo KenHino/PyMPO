@@ -83,7 +83,7 @@ q4 = [ints**4 for ints in q1]
 qn = [q1, q2, q3, q4]
 
 
-@profile
+# @profile
 def test_profile(backend: Literal["py", "rs"] = "py"):
     pympo.config.backend = backend
     logger.info(f"{pympo.config.backend=}")
