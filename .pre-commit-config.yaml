@@ -20,25 +20,49 @@ repos:
         entry: uv run ruff format .
         language: system
         pass_filenames: false
-        files: "^(pympo|tests)"
+        files: "^(src/pympo|tests)"
 
       - id: fix-lint
         name: fix-lint
         entry: uv run ruff check --fix .
         language: system
         pass_filenames: false
-        files: "^(pympo|tests)"
+        files: "^(src/pympo|tests)"
 
       - id: typecheck
         name: mypy
-        entry: uv run mypy --install-types --non-interactive pympo
+        entry: uv run mypy --install-types --non-interactive src/pympo
         language: system
         pass_filenames: false
-        files: "^(pympo/|)"
+        files: "^(src/pympo/|)"
 
       - id: pytest
         name: pytest
         entry: cd tests/build && uv run pytest -n auto ..
         language: system
         pass_filenames: false
-        files: "^(pympo/|tests/)"
+        files: "^(src/pympo/|tests/)"
+
+      - id: rustfmt
+        name: rustfmt
+        description: Check if all files follow the rustfmt style
+        entry: cargo fmt --all -- --color always
+        language: system
+        pass_filenames: false
+        files: "^(src/lib.rs|tests/)"
+
+      - id: clippy
+        name: clippy
+        description: Check if all files pass clippy
+        entry: cargo clippy --all-targets --all-features -- -D warnings
+        language: system
+        pass_filenames: false
+        files: "^(src/lib.rs|tests/)"
+
+      - id: rusttest
+        name: rusttest
+        description: Run all tests
+        entry: cargo test --all-targets --all-features
+        language: system
+        pass_filenames: false
+        files: "^(src/lib.rs|tests/)"

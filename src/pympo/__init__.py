@@ -1,3 +1,4 @@
+from ._core import get_min_vertex_cover as get_min_vertex_cover2
 from .bipartite import (
     AssignManager,
     assign_core,
@@ -21,6 +22,7 @@ __all__ = [
     "config",
     "get_maximal_matching",
     "get_min_vertex_cover",
+    "get_min_vertex_cover2",
     "get_UVE",
     "AssignManager",
     "SumOfProducts",

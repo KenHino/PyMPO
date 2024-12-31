@@ -6,6 +6,7 @@ from collections import defaultdict
 from typing import Literal
 
 import numpy as np
+import pytest
 import sympy
 from loguru import logger
 
@@ -83,8 +84,8 @@ q4 = [ints**4 for ints in q1]
 qn = [q1, q2, q3, q4]
 
 
-# @profile
-def test_profile(backend: Literal["py", "rs"] = "py"):
+@pytest.mark.parametrize("backend", ["py", "rs"])
+def test_profile(backend: Literal["py", "rs"]):
     pympo.config.backend = backend
     logger.info(f"{pympo.config.backend=}")
     kinetic_sop = pympo.SumOfProducts([])
@@ -127,7 +128,7 @@ def test_profile(backend: Literal["py", "rs"] = "py"):
 
 
 if __name__ == "__main__":
-    test_profile()
+    test_profile(backend="rs")
     # import cProfile
     # import pstats
 

@@ -5,8 +5,13 @@ import networkx as nx
 import sympy
 from matplotlib.patches import FancyBboxPatch
 
-from .bipartite import get_bipartite, get_maximal_matching, get_min_vertex_cover
-from .operators import SumOfProducts
+import pympo
+from pympo.bipartite import (
+    get_bipartite,
+    get_maximal_matching,
+    get_min_vertex_cover,
+)
+from pympo.operators import SumOfProducts
 
 
 def show_assigns(
@@ -204,7 +209,14 @@ def show_maximal_matching(
 def show_min_vertex_cover(
     G: nx.Graph, pos: dict[str, tuple[int, int]], max_matching: dict[str, str]
 ) -> list[str]:
-    C = get_min_vertex_cover(G, max_matching)
+    if pympo.config.backend == "py":
+        C = get_min_vertex_cover(G, max_matching)
+    else:
+        # G is bipartite graph, we want U, V, E
+        U = set(nx.bipartite.sets(G)[0])
+        E = set(G.edges())
+        C = pympo._core.get_min_vertex_cover(U, E, max_matching)
+
     G_latex = _renameG2latex(G)
     max_matching_latex = {
         _node2latex(k): _node2latex(v) for k, v in max_matching.items()

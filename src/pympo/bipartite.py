@@ -169,13 +169,16 @@ class AssignManager:
         Unew: list[str] | None = None,
         keep_symbol: bool = False,
     ) -> list[str]:
+        U, V, E, E_assigns = self._get_UVE(isite, Unew, keep_symbol)
+        G = get_bipartite(U, V, E)
+        max_matching = get_maximal_matching(G)
         if pympo.config.backend == "py":
-            U, V, E, E_assigns = self._get_UVE(isite, Unew, keep_symbol)
-            G = get_bipartite(U, V, E)
-            max_matching = get_maximal_matching(G)
             min_vertex_cover = get_min_vertex_cover(G, max_matching)
         else:
-            raise NotImplementedError("Backend is not implemented")
+            min_vertex_cover = pympo._core.get_min_vertex_cover(
+                U, E, max_matching
+            )
+        assert is_vertex_cover(G, min_vertex_cover)
         Unew: list[str] = []  # type: ignore
         assert isinstance(Unew, list)
         self.unique_ops[isite] = []
@@ -669,3 +672,11 @@ def assign_core(
                     Wi[left_index, right_index] == opisite
                 ), f"{Wi[left_index, right_index]=} while {op[isite]=} when {coef_site[k]=}, {isite=}"
     return Unew, Wi
+
+
+def is_vertex_cover(G: nx.Graph, vertex_cover: list[str]) -> bool:
+    for u, v in G.edges():
+        if u not in vertex_cover and v not in vertex_cover:
+            logger.debug(f"{u=} and {v=} are not in {vertex_cover=}")
+            return False
+    return True

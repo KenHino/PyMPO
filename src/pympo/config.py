@@ -2,7 +2,7 @@ from typing import Literal
 
 
 class Config:
-    backend: Literal["py", "rs"] = "py"
+    backend: Literal["py", "rs"] = "rs"
 
 
 config = Config()
