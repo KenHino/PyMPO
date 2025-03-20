@@ -349,10 +349,8 @@ class OpProductSite:
                 return self
             else:
                 idx = bisect_left(self.sites, other.isite)
-                self.symbol *= other.symbol
                 self.ops.insert(idx, other)
-                self.sites.insert(idx, other.isite)
-                return self
+                return OpProductSite(self.ops)
         elif isinstance(other, OpProductSite):
             coef = self.coef * other.coef
             new_product = OpProductSite(self.ops)
