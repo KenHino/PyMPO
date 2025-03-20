@@ -65,8 +65,10 @@ class OpSite:
             assert isinstance(retval, OpProductSite)
             return retval
         elif isinstance(other, OpSite):
-            if self.isite != other.isite:
+            if self.isite < other.isite:
                 return OpProductSite([self, other])
+            elif self.isite > other.isite:
+                return OpProductSite([other, self])
             else:
                 symbol = self.symbol * other.symbol
                 isite = self.isite
