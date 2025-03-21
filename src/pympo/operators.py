@@ -350,7 +350,7 @@ class OpProductSite:
             else:
                 idx = bisect_left(self.sites, other.isite)
                 self.ops.insert(idx, other)
-                return OpProductSite(self.ops)
+                return OpProductSite(self.ops) * self.coef
         elif isinstance(other, OpProductSite):
             coef = self.coef * other.coef
             new_product = OpProductSite(self.ops)
