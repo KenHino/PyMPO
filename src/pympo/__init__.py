@@ -1,3 +1,11 @@
+# Fix seed for matching implemented in NetworkX
+import random
+
+random.seed(246)  # or any integer
+import numpy as np
+
+np.random.seed(4812)
+
 from ._core import get_min_vertex_cover as get_min_vertex_cover2
 from .bipartite import (
     AssignManager,
