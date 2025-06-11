@@ -302,6 +302,39 @@ class AssignManager:
             self.operator, self.W_assigns, self.coef_site
         )
 
+    def subs(
+        self,
+        subs: dict[sympy.Symbol, int | float | complex],
+        dtype=np.complex128,
+    ) -> None:
+        """
+        Substitutes the symbolic coefficients with numerical values.
+        This method would be useful when time-dependent parameters are involved.
+        In such case, one can substitute static parameters with numerical values in advance
+        and only time-dependent parameters are left in the symbolic form.
+        """
+        for op in self.operator.ops:
+            coef = op.coef
+            if isinstance(coef, int | float | complex):
+                pass
+            elif isinstance(coef, sympy.Basic):
+                if coef in subs:
+                    _coef = subs[coef]  # type: ignore
+                else:
+                    _coef = coef.subs(subs)
+                if dtype == np.complex128:
+                    _coef = complex(_coef)
+                elif dtype == np.float64:
+                    _coef = float(_coef)  # type: ignore
+                else:
+                    raise ValueError(f"{dtype=} is not supported")
+                assert isinstance(
+                    _coef, int | float | complex
+                ), f"{_coef=} is not a number but {type(_coef)}"
+            else:
+                raise ValueError(f"{coef=} is not a number")
+            op.coef = _coef
+
     # @profile
     def numerical_mpo(
         self,
