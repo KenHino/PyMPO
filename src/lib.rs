@@ -1,7 +1,6 @@
 use pyo3::prelude::*;
 use std::collections::{HashMap, HashSet};
 
-
 #[pyfunction]
 fn get_min_vertex_cover(
     u: HashSet<String>,
