@@ -1,6 +1,6 @@
 [project]
 name = "pympo"
-version = "0.1.5"
+version = "0.1.6"
 readme = "README.md"
 description = "Automatic and symbolical constructor of matrix product operator"
 authors = [
