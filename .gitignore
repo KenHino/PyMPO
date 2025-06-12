@@ -1,6 +1,6 @@
-!test.h5
 *.npz
 *.h5
+!test.h5
 *_relax/
 *_propagate/
 *.log
