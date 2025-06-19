@@ -14,8 +14,10 @@ select = [
 ]
 ignore = [
   "B018", # useless-expression
+  "E402", # Module level import not at top of file
   "E501", # line too long
   "E731", # do not assign a lambda expression, use a def
+  "E741", # Ambiguous variable name
 ]
 
 [lint.pydocstyle]
