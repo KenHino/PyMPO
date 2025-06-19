@@ -835,13 +835,14 @@ class SumOfProducts:
                 self.coefs[i] = self.ops[i].coef
             return self
         elif isinstance(other, OpSite):
-            for op in self.ops:
-                op *= other
+            for i in range(len(self.ops)):
+                self.ops[i] = self.ops[i] * other
             return self
         elif isinstance(other, OpProductSite):
-            for op, coef in zip(self.ops, self.coefs, strict=True):
-                op *= other
-                coef *= other.coef
+            assert len(self.ops) == len(self.coefs)
+            for i in range(len(self.ops)):
+                self.ops[i] = self.ops[i] * other
+                self.coefs[i] *= other.coef
             return self
         elif isinstance(other, SumOfProducts):
             raise NotImplementedError()

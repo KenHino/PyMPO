@@ -1,6 +1,8 @@
 # Fix seed for matching implemented in NetworkX
 import random
 
+from .__version__ import __version__
+
 random.seed(246)  # or any integer
 import numpy as np
 
@@ -40,4 +42,5 @@ __all__ = [
     "show_maximal_matching",
     "show_min_vertex_cover",
     "get_eye_site",
+    "__version__",
 ]
