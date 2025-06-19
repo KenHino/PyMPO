@@ -1,3 +1,4 @@
+from .__version__ import __version__
 from ._core import get_min_vertex_cover as get_min_vertex_cover2
 from .bipartite import (
     AssignManager,
@@ -32,4 +33,5 @@ __all__ = [
     "show_maximal_matching",
     "show_min_vertex_cover",
     "get_eye_site",
+    "__version__",
 ]
