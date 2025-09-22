@@ -4,7 +4,7 @@ Automatic and symbolic construction of matrix product operator (MPO)
 Python (Sympy) is employed as interface and Rust as part of backend.
 
 > [!NOTE]
-> PyMPO employs [maturin](https://github.com/PyO3/maturin) as a build backend. Thus, [cargo](https://github.com/rust-lang/cargo), package manager of Rust, is required in your envoronment. If you have'nt, follow [rustup installation](https://www.rust-lang.org/tools/install).
+> PyMPO employs [maturin](https://github.com/PyO3/maturin) as a build backend. Thus, [cargo](https://github.com/rust-lang/cargo) 1.78+, package manager of Rust, is required in your envoronment. If you have'nt, follow [rustup installation](https://www.rust-lang.org/tools/install).
 
 ## Document
 https://kenhino.github.io/PyMPO/example/autompo-sym.html
