@@ -43,7 +43,7 @@ def show_assigns(
             if i < ndim - 1:
                 edge = (
                     f"${sympy.latex(op[i])}$[{assign[i]}]",
-                    f"${sympy.latex(op[i+1])}$[{assign[i+1]}]",
+                    f"${sympy.latex(op[i + 1])}$[{assign[i + 1]}]",
                 )
                 G.add_edge(*edge)
                 if coef_site[j] == i + 1:
@@ -62,7 +62,7 @@ def show_assigns(
     G.add_node(name)
     pos[name] = (ndim + 1, 0)
     for assign, op in zip(W_assigns, operators, strict=True):
-        name_left = f"${sympy.latex(op[ndim-1])}$[{assign[ndim-1]}]"
+        name_left = f"${sympy.latex(op[ndim - 1])}$[{assign[ndim - 1]}]"
         G.add_edge(name, name_left)
 
     for i in range(ndim):
@@ -207,15 +207,24 @@ def show_maximal_matching(
 
 
 def show_min_vertex_cover(
-    G: nx.Graph, pos: dict[str, tuple[int, int]], max_matching: dict[str, str]
+    G: nx.Graph,
+    pos: dict[str, tuple[int, int]],
+    max_matching: dict[str, str],
+    U=None,
+    V=None,
+    E=None,
 ) -> list[str]:
     if pympo.config.backend == "py":
         C = get_min_vertex_cover(G, max_matching)
     else:
         # G is bipartite graph, we want U, V, E
-        U = set(nx.bipartite.sets(G)[0])
-        E = set(G.edges())
-        C = pympo._core.get_min_vertex_cover(U, E, max_matching)
+        if U is None or V is None or E is None:
+            raise ValueError(
+                "U, V, E must be provided when using non-py backend"
+            )
+        # U = set(nx.bipartite.sets(G)[0])
+        # E = set(G.edges())
+        C = pympo._core.get_min_vertex_cover(set(U), set(E), max_matching)
 
     G_latex = _renameG2latex(G)
     max_matching_latex = {

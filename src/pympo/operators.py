@@ -604,9 +604,9 @@ class OpProductSite:
             value = self.ops[idx].value
             assert isinstance(value, np.ndarray)
             if isdiag:
-                assert value.shape == (
-                    n_basis,
-                ), f"{value.shape=} while {n_basis=}"
+                assert value.shape == (n_basis,), (
+                    f"{value.shape=} while {n_basis=}"
+                )
             elif value.ndim == 1:
                 value = np.diag(value)
                 assert value.shape == (
@@ -727,9 +727,9 @@ class SumOfProducts:
         symbol = 0
         for i in range(len(self.ops)):
             symbol += self.ops[i].symbol * self.coefs[i]
-        assert isinstance(
-            symbol, sympy.Basic | int | float | complex
-        ), f"{symbol=}"
+        assert isinstance(symbol, sympy.Basic | int | float | complex), (
+            f"{symbol=}"
+        )
         return symbol
 
     @property

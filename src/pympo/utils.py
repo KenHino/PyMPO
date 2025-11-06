@@ -450,9 +450,9 @@ def export_itensor_hdf5(
     filename = _validate_filename(filename, ".h5", "r")
     f = h5py.File(filename, "r+")
     N = f[name]["length"][()]  # number of sites
-    assert N == len(
-        mpo
-    ), f"The number of sites in the MPO is {len(mpo)} but {N} in the HDF5file"
+    assert N == len(mpo), (
+        f"The number of sites in the MPO is {len(mpo)} but {N} in the HDF5file"
+    )
 
     for i in range(1, N + 1):
         site = f[name][f"MPO[{i}]"]
@@ -460,7 +460,7 @@ def export_itensor_hdf5(
         data = mpo[i - 1]
         orig2tmp = [0, 1, 2, 3]
         for j in range(n_index):
-            index = site["inds"][f"index_{j+1}"]
+            index = site["inds"][f"index_{j + 1}"]
             tags = index["tags"]["tags"][()]
             changed_index = orig2tmp.index(j)
             if tags == f"Link,l={i}".encode():
@@ -478,7 +478,9 @@ def export_itensor_hdf5(
                     index["dim"][()]
                     == mpo[i - 1].shape[1]
                     == mpo[i - 1].shape[2]
-                ), f"The physical dimension of the MPO is {mpo[i - 1].shape[1]} but {index['dim'][()]} in the HDF5file"
+                ), (
+                    f"The physical dimension of the MPO is {mpo[i - 1].shape[1]} but {index['dim'][()]} in the HDF5file"
+                )
                 if index["plev"][()] == 1:
                     data = np.swapaxes(data, orig2tmp[1], j)
                     orig2tmp[changed_index], orig2tmp[1] = (
@@ -491,7 +493,7 @@ def export_itensor_hdf5(
                         orig2tmp[2],
                         orig2tmp[changed_index],
                     )
-            elif tags == f"Link,l={i-1}".encode():
+            elif tags == f"Link,l={i - 1}".encode():
                 index["dim"][()] = bond_dims[i - 1]
                 data = np.swapaxes(data, orig2tmp[0], j)
                 orig2tmp[changed_index], orig2tmp[0] = (
@@ -557,7 +559,7 @@ def import_itensor_hdf5(filename: Path | str, name: str = "H") -> Mpo:
             shape.append(1)
 
         for j in range(n_index):
-            index = site["inds"][f"index_{j+1}"]
+            index = site["inds"][f"index_{j + 1}"]
             tags = index["tags"]["tags"][()]
             if tags == f"Link,l={i}".encode():
                 r = index["dim"][()]
@@ -573,7 +575,7 @@ def import_itensor_hdf5(filename: Path | str, name: str = "H") -> Mpo:
                     swap.append(2)
                 c = index["dim"][()]
                 shape.append(c)
-            elif tags == f"Link,l={i-1}".encode():
+            elif tags == f"Link,l={i - 1}".encode():
                 l = index["dim"][()]
                 swap.append(0)
                 shape.append(l)
