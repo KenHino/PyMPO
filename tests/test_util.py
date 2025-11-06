@@ -59,9 +59,9 @@ def test_util():
     full_qr = full_matrix(mpo_qr)
     full_svd = full_matrix(mpo_svd)
     np.testing.assert_allclose(full, full_qr, atol=1e-20)
-    assert (
-        np.mean(np.abs(full - full_svd)) < 1e-01
-    ), f"The difference is {np.mean(np.abs(full - full_svd))}"
+    assert np.mean(np.abs(full - full_svd)) < 1e-01, (
+        f"The difference is {np.mean(np.abs(full - full_svd))}"
+    )
 
     mpo = to_tensor_train(full, [10, 4, 5])
     _validate_mpo(mpo)

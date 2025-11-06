@@ -283,7 +283,7 @@ class AssignManager:
         Unew = None
         for isite in range(self.ndim):
             Unew = self._update(isite, Unew, keep_symbol)
-            logger.info(f"assigned {isite+1}/{self.ndim}")
+            logger.info(f"assigned {isite + 1}/{self.ndim}")
         self.Wsym = self.reset_Wsym()
         # assert sympy.Mul(*self.Wsym).expand()[0] == self.operator.symbol
         return self.Wsym
@@ -328,9 +328,9 @@ class AssignManager:
                     _coef = float(_coef)  # type: ignore
                 else:
                     raise ValueError(f"{dtype=} is not supported")
-                assert isinstance(
-                    _coef, int | float | complex
-                ), f"{_coef=} is not a number but {type(_coef)}"
+                assert isinstance(_coef, int | float | complex), (
+                    f"{_coef=} is not a number but {type(_coef)}"
+                )
             else:
                 raise ValueError(f"{coef=} is not a number")
             op.coef = _coef
@@ -379,9 +379,9 @@ class AssignManager:
                     _coef = float(_coef)
                 else:
                     raise ValueError(f"{dtype=} is not supported")
-                assert isinstance(
-                    _coef, int | float | complex
-                ), f"{_coef=} is not a number but {type(_coef)}"
+                assert isinstance(_coef, int | float | complex), (
+                    f"{_coef=} is not a number but {type(_coef)}"
+                )
                 coef_list.append(_coef)
             else:
                 raise ValueError(f"{coef=} is not a number")
@@ -407,9 +407,9 @@ class AssignManager:
                     assert opisite.shape == (n_basis, n_basis)
                 if self.coef_site[k] == isite:
                     coef = coef_list[k]
-                    assert isinstance(
-                        coef, int | float | complex
-                    ), f"{coef=} is not a number"
+                    assert isinstance(coef, int | float | complex), (
+                        f"{coef=} is not a number"
+                    )
                     if isdiag:
                         core[left_index, :, right_index] += coef * opisite
                     else:
@@ -669,9 +669,9 @@ def assign_core(
     else:
         right_dim = len(Unew)
         right_dim_debug = max([assign[isite] for assign in W_assigns]) + 1
-        assert (
-            right_dim == right_dim_debug
-        ), f"{right_dim} != {right_dim_debug}, {[assign[isite] for assign in W_assigns]}"
+        assert right_dim == right_dim_debug, (
+            f"{right_dim} != {right_dim_debug}, {[assign[isite] for assign in W_assigns]}"
+        )
     Wi = sympy.zeros(left_dim, right_dim)
     for k in unique_ops:
         op = operators.ops[k]
@@ -701,9 +701,9 @@ def assign_core(
             if Wi[left_index, right_index] == 0:
                 Wi[left_index, right_index] = opisite
             else:
-                assert (
-                    Wi[left_index, right_index] == opisite
-                ), f"{Wi[left_index, right_index]=} while {op[isite]=} when {coef_site[k]=}, {isite=}"
+                assert Wi[left_index, right_index] == opisite, (
+                    f"{Wi[left_index, right_index]=} while {op[isite]=} when {coef_site[k]=}, {isite=}"
+                )
     return Unew, Wi
 
 
