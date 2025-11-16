@@ -123,7 +123,12 @@ def test_profile(backend: Literal["py", "rs"]):
     hamiltonian_sop = hamiltonian_sop.simplify()
     am_hamiltonian = pympo.AssignManager(hamiltonian_sop)
     am_hamiltonian.assign(keep_symbol=False)
-    _ = am_hamiltonian.numerical_mpo(subs=coef_symbol)
+    mpo_serial = am_hamiltonian.numerical_mpo(subs=coef_symbol, parallel=False)
+    mpo_parallel = am_hamiltonian.numerical_mpo(subs=coef_symbol, parallel=True)
+    for core_serial, core_parallel in zip(
+        mpo_serial, mpo_parallel, strict=True
+    ):
+        np.testing.assert_allclose(core_serial, core_parallel)
     # assert sympy.Mul(*am_hamiltonian.Wsym)[0].expand() == hamiltonian_sop.symbol.expand()
 
 

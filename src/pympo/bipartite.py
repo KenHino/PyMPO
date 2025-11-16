@@ -1,3 +1,5 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 import networkx as nx
 import numpy as np
 import sympy
@@ -335,11 +337,81 @@ class AssignManager:
                 raise ValueError(f"{coef=} is not a number")
             op.coef = _coef
 
+    def _compute_core_for_site(
+        self,
+        isite: int,
+        n_basis: int,
+        isdiag: bool,
+        coef_list: list[int | float | complex],
+        dtype: type,
+    ) -> tuple[int, NDArray]:
+        """
+        Compute the core array for a single site.
+
+        Args:
+            isite: The site index.
+            n_basis_list: List of basis sizes for each site.
+            isdiag_list: List of diagonal flags for each site.
+            coef_list: List of coefficients for each operator.
+            dtype: The data type of the MPO elements.
+
+        Returns:
+            A tuple of (isite, core) where core is the computed numpy array.
+        """
+        left_dim, right_dim = self._get_bond_dim(isite)
+        if isdiag:
+            core: NDArray = np.zeros(
+                (left_dim, n_basis, right_dim), dtype=dtype
+            )
+        else:
+            core = np.zeros(
+                (left_dim, n_basis, n_basis, right_dim), dtype=dtype
+            )
+
+        for k in self.unique_ops[isite]:
+            left_index, right_index = self._get_bond_index(isite, k)
+            opisite = self.operator.ops[k].get_site_value(
+                isite, n_basis=n_basis, isdiag=isdiag
+            )
+            if isdiag:
+                assert opisite.shape == (n_basis,)
+            else:
+                assert opisite.shape == (n_basis, n_basis)
+            if self.coef_site[k] == isite:
+                coef = coef_list[k]
+                assert isinstance(coef, int | float | complex), (
+                    f"{coef=} is not a number"
+                )
+                if isdiag:
+                    core[left_index, :, right_index] += coef * opisite
+                else:
+                    core[left_index, :, :, right_index] += coef * opisite
+            elif self.coef_site[k] < isite:
+                if isdiag:
+                    core[left_index, :, right_index] += opisite
+                else:
+                    core[left_index, :, :, right_index] += opisite
+            else:
+                if isdiag:
+                    assert np.allclose(
+                        core[left_index, :, right_index], 0
+                    ) or np.allclose(core[left_index, :, right_index], opisite)
+                    core[left_index, :, right_index] = opisite
+                else:
+                    core[left_index, :, :, right_index] = opisite
+                    assert np.allclose(
+                        core[left_index, :, :, right_index], 0
+                    ) or np.allclose(
+                        core[left_index, :, :, right_index], opisite
+                    )
+        return isite, core
+
     # @profile
     def numerical_mpo(
         self,
         dtype=np.complex128,
         subs: dict[sympy.Symbol, int | float | complex] | None = None,
+        parallel: bool = False,
     ) -> list[NDArray]:
         """
         Generate a numerical Matrix Product Operator (MPO) representation.
@@ -350,6 +422,8 @@ class AssignManager:
             subs (dict[sympy.Symbol, int | float | complex] | None, optional):
                 A dictionary of substitutions for symbolic coefficients.
                 Defaults to None.
+            parallel (bool, optional): If True, compute cores in parallel.
+                Defaults to False to avoid excessive memory usage.
 
         Returns:
             list[NDArray]: A list of numpy arrays representing the MPO.
@@ -358,7 +432,6 @@ class AssignManager:
             ValueError: If the dtype is not supported or if a coefficient is not a number.
 
         """
-        mpo = []
         n_basis_list = self.operator.nbasis_list
         isdiag_list = self.operator.isdiag_list
         coef_list = []
@@ -385,56 +458,40 @@ class AssignManager:
                 coef_list.append(_coef)
             else:
                 raise ValueError(f"{coef=} is not a number")
-        for isite in range(self.ndim):
-            left_dim, right_dim = self._get_bond_dim(isite)
-            n_basis = n_basis_list[isite]
-            isdiag = isdiag_list[isite]
-            if isdiag:
-                core = np.zeros((left_dim, n_basis, right_dim), dtype=dtype)
-            else:
-                core = np.zeros(
-                    (left_dim, n_basis, n_basis, right_dim), dtype=dtype
-                )
 
-            for k in self.unique_ops[isite]:
-                left_index, right_index = self._get_bond_index(isite, k)
-                opisite = self.operator.ops[k].get_site_value(
-                    isite, n_basis=n_basis, isdiag=isdiag
+        if parallel:
+            # Parallel computation of cores for each site
+            mpo_dict = {}
+            with ThreadPoolExecutor() as executor:
+                futures = {
+                    executor.submit(
+                        self._compute_core_for_site,
+                        isite,
+                        n_basis_list[isite],
+                        isdiag_list[isite],
+                        coef_list,
+                        dtype,
+                    ): isite
+                    for isite in range(self.ndim)
+                }
+                for future in as_completed(futures):
+                    isite, core = future.result()
+                    mpo_dict[isite] = core
+
+            # Reconstruct mpo in the correct order
+            mpo = [mpo_dict[isite] for isite in range(self.ndim)]
+        else:
+            # Sequential computation (original implementation)
+            mpo = []
+            for isite in range(self.ndim):
+                _, core = self._compute_core_for_site(
+                    isite,
+                    n_basis_list[isite],
+                    isdiag_list[isite],
+                    coef_list,
+                    dtype,
                 )
-                if isdiag:
-                    assert opisite.shape == (n_basis,)
-                else:
-                    assert opisite.shape == (n_basis, n_basis)
-                if self.coef_site[k] == isite:
-                    coef = coef_list[k]
-                    assert isinstance(coef, int | float | complex), (
-                        f"{coef=} is not a number"
-                    )
-                    if isdiag:
-                        core[left_index, :, right_index] += coef * opisite
-                    else:
-                        core[left_index, :, :, right_index] += coef * opisite
-                elif self.coef_site[k] < isite:
-                    if isdiag:
-                        core[left_index, :, right_index] += opisite
-                    else:
-                        core[left_index, :, :, right_index] += opisite
-                else:
-                    if isdiag:
-                        assert np.allclose(
-                            core[left_index, :, right_index], 0
-                        ) or np.allclose(
-                            core[left_index, :, right_index], opisite
-                        )
-                        core[left_index, :, right_index] = opisite
-                    else:
-                        core[left_index, :, :, right_index] = opisite
-                        assert np.allclose(
-                            core[left_index, :, :, right_index], 0
-                        ) or np.allclose(
-                            core[left_index, :, :, right_index], opisite
-                        )
-            mpo.append(core)
+                mpo.append(core)
 
         return mpo
 
