@@ -1,5 +1,6 @@
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![Deploy static content to Pages](https://github.com/KenHino/PyMPO/actions/workflows/static.yml/badge.svg)](https://github.com/KenHino/PyMPO/actions/workflows/static.yml)
+[![unittest-uv](https://github.com/KenHino/PyMPO/actions/workflows/unittest-uv.yml/badge.svg)](https://github.com/KenHino/PyMPO/actions/workflows/unittest-uv.yml)
 
 # PyMPO
 Automatic and symbolic construction of matrix product operator (MPO)
