@@ -261,3 +261,48 @@ def test_sumofproducts_isdiag_list_all_nondiag():
     opproductsite2 = OpProductSite([opsite2])
     sumofproducts = SumOfProducts([opproductsite1, opproductsite2])
     assert sumofproducts.isdiag_list == [False, False]
+
+
+def test_sumofproducts_to_mpo():
+    """Test that to_mpo() returns a valid MPO representation."""
+    # Create a simple 2-site operator: z_0 + z_1
+    value = np.array([1.0, -1.0])  # Pauli Z eigenvalues
+    opsite0 = OpSite("z_0", 0, value=value, isdiag=True)
+    opsite1 = OpSite("z_1", 1, value=value, isdiag=True)
+    sumofproducts = SumOfProducts([opsite0, opsite1])
+
+    # Test to_mpo()
+    mpo = sumofproducts.to_mpo()
+
+    # Check that mpo is a list of NDArray
+    assert isinstance(mpo, list)
+    assert len(mpo) == 2  # 2 sites
+    for core in mpo:
+        assert isinstance(core, np.ndarray)
+        # MPO cores should be 3-rank or 4-rank tensors
+        assert core.ndim in (3, 4)
+
+
+def test_sumofproducts_to_mpo_consistency():
+    """Test that to_mpo() gives the same result as using AssignManager directly."""
+    import pympo
+
+    # Create a simple 2-site operator: z_0 * z_1
+    value = np.array([1.0, -1.0])  # Pauli Z eigenvalues
+    opsite0 = OpSite("z_0", 0, value=value, isdiag=True)
+    opsite1 = OpSite("z_1", 1, value=value, isdiag=True)
+    op_product = OpProductSite([opsite0, opsite1])
+    sumofproducts = SumOfProducts([op_product])
+
+    # Test to_mpo()
+    mpo_from_to_mpo = sumofproducts.to_mpo()
+
+    # Test using AssignManager directly
+    am = pympo.AssignManager(sumofproducts)
+    am.assign(keep_symbol=False)
+    mpo_from_am = am.numerical_mpo(parallel=True)
+
+    # Compare results
+    assert len(mpo_from_to_mpo) == len(mpo_from_am)
+    for core1, core2 in zip(mpo_from_to_mpo, mpo_from_am, strict=True):
+        np.testing.assert_allclose(core1, core2, atol=1e-10)

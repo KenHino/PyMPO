@@ -857,8 +857,25 @@ class SumOfProducts:
         else:
             raise ValueError(f"Invalid type: {type(other)=}")
 
-    def to_mpo(self) -> list[NDArray]:
-        raise NotImplementedError()
+    def to_mpo(self, subs: dict | None = None) -> list[NDArray]:
+        """
+        Convert the SumOfProducts to a Matrix Product Operator (MPO) representation.
+
+        This method internally uses AssignManager to perform the assignment and
+        numerical MPO conversion.
+
+        Returns:
+            list[NDArray]: A list of numpy arrays representing the MPO cores.
+
+        Note:
+            This method uses keep_symbol=False and parallel=True internally.
+        """
+        # Import here to avoid circular import
+        from .bipartite import AssignManager
+
+        am = AssignManager(self)
+        am.assign(keep_symbol=False)
+        return am.numerical_mpo(parallel=True, subs=subs)
 
     def __iter__(self) -> Iterator[OpProductSite]:
         return iter(self.ops)
