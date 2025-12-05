@@ -147,14 +147,30 @@ class OpSite:
             else:
                 n_basis = None
             eye = get_eye_site(self.isite, n_basis=n_basis)
-            return self + eye
+            return self + eye * other
         else:
             raise ValueError("Invalid type")
 
     def __sub__(
-        self, other: OpSite | OpProductSite | SumOfProducts
+        self,
+        other: OpSite
+        | OpProductSite
+        | SumOfProducts
+        | int
+        | float
+        | complex
+        | sympy.Basic,
     ) -> OpSite | SumOfProducts:
-        if isinstance(other, OpSite | OpProductSite | SumOfProducts):
+        if isinstance(
+            other,
+            OpSite
+            | OpProductSite
+            | SumOfProducts
+            | int
+            | float
+            | complex
+            | sympy.Basic,
+        ):
             return self + (-1) * other
         else:
             raise ValueError("Invalid type")
@@ -812,9 +828,25 @@ class SumOfProducts:
             raise ValueError(f"Invalid type: {type(other)=}")
 
     def __sub__(
-        self, other: OpSite | OpProductSite | SumOfProducts
+        self,
+        other: OpSite
+        | OpProductSite
+        | SumOfProducts
+        | int
+        | float
+        | complex
+        | sympy.Basic,
     ) -> SumOfProducts:
-        if isinstance(other, OpSite | OpProductSite | SumOfProducts):
+        if isinstance(
+            other,
+            OpSite
+            | OpProductSite
+            | SumOfProducts
+            | int
+            | float
+            | complex
+            | sympy.Basic,
+        ):
             return self + (-1) * other
         else:
             raise ValueError(f"Invalid type: {type(other)=}")
